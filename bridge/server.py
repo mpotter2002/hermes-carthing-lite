@@ -3,8 +3,11 @@
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
+import stat
+import sys
 import tempfile
 import threading
 from datetime import datetime, timezone
@@ -13,9 +16,11 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 
-HOST = os.environ.get("AGENT_MONITOR_HOST", "0.0.0.0")
+# Loopback by default: the Car Thing reaches this through `adb reverse`, which only needs 127.0.0.1.
+HOST = os.environ.get("AGENT_MONITOR_HOST", "127.0.0.1")
 PORT = int(os.environ.get("AGENT_MONITOR_PORT", "8892"))
-TOKEN = os.environ.get("AGENT_MONITOR_TOKEN", "")
+TOKEN_FILE = os.environ.get("AGENT_MONITOR_TOKEN_FILE", "")
+TOKEN = ""
 DATA_FILE = Path(
     os.environ.get(
         "AGENT_MONITOR_DATA_FILE",
@@ -171,11 +176,11 @@ class Handler(BaseHTTPRequestHandler):
         if agent not in AGENTS:
             self.send_json(404, {"error": "unknown agent"})
             return
-        if TOKEN:
-            supplied = self.headers.get("Authorization", "")
-            if supplied != f"Bearer {TOKEN}":
-                self.send_json(401, {"error": "unauthorized"})
-                return
+        if not hmac.compare_digest(
+            self.headers.get("Authorization", "").encode(), f"Bearer {TOKEN}".encode()
+        ):
+            self.send_json(401, {"error": "unauthorized"})
+            return
         try:
             length = int(self.headers.get("Content-Length", "0"))
             if length < 1 or length > 65536:
@@ -194,7 +199,27 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200, response)
 
 
+def load_token() -> str:
+    """Token from a 0600 file (preferred) or AGENT_MONITOR_TOKEN. Refuse to run without one."""
+    if TOKEN_FILE:
+        path = Path(TOKEN_FILE).expanduser()
+        try:
+            mode = stat.S_IMODE(path.stat().st_mode)
+            value = path.read_text(encoding="utf-8").strip()
+        except OSError as error:
+            sys.exit(f"Cannot read token file {path}: {error.strerror}")
+        if mode & 0o077:
+            sys.exit(f"Token file {path} must not be readable by group/others (chmod 0600).")
+    else:
+        value = os.environ.get("AGENT_MONITOR_TOKEN", "").strip()
+    if not value:
+        sys.exit("No write token: set AGENT_MONITOR_TOKEN_FILE (0600 file) or AGENT_MONITOR_TOKEN.")
+    return value
+
+
 def main() -> None:
+    global TOKEN
+    TOKEN = load_token()
     DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"Agent monitor bridge listening on {HOST}:{PORT}", flush=True)
