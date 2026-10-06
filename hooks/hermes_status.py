@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Post Hermes gateway status to the Car Thing bridge.
+"""Post Hermes status to the Car Thing bridge.
 
-Reads Hermes's public liveness endpoint (GET /api/status: gateway state and active agent count,
-no session content or secrets) and posts a minimal status for the "hermes" screen. It does not
-read transcripts, and it does not report a model or token counts because /api/status has neither.
+Combines two content-free sources:
+- Hermes's public liveness endpoint (GET /api/status): gateway state and active gateway chats
+  (iMessage, the app, dashboard Bot Chat).
+- Running `hermes [-p NAME] chat` processes on this machine (bot-to-bot messages, coding workers,
+  one-shot runs). The gateway does not count these. Only process argument lists are read.
+
+It does not read transcripts, and it reports no model or token counts because neither source has them.
 
 Usage:
   AGENT_MONITOR_TOKEN_FILE=~/.local/state/agent-monitor/token python3 hooks/hermes_status.py
@@ -15,6 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import signal
 import stat
 import sys
@@ -43,39 +48,119 @@ def read_token(path: str) -> str:
     return value
 
 
-def map_status(raw: dict) -> dict:
-    running = bool(raw.get("gateway_running"))
-    if not running:
-        state = str(raw.get("gateway_state") or "stopped")[:40]
-        return {"gateway": "offline", "activity": "idle", "provider": PROVIDER,
-                "message": f"Gateway {state}", "tools": {"active": []}}
+def local_message(local: list[str]) -> str:
+    if len(local) == 1:
+        return f"{local[0]} working"
+    return f"{len(local)} bots working: {', '.join(local)}"
+
+
+def map_status(raw: dict | None, local: list[str] | tuple = ()) -> dict:
+    """Combine gateway status (None when /api/status was unreachable) with local `hermes chat` runs."""
+    local = list(local)
+    tools = {"active": [name[:40] for name in local[:6]]}
+    if raw is None or not raw.get("gateway_running"):
+        if raw is None:
+            idle_message = "Hermes status unavailable"
+        else:
+            idle_message = f"Gateway {str(raw.get('gateway_state') or 'stopped')[:40]}"
+        return {"gateway": "offline", "activity": "working" if local else "idle", "provider": PROVIDER,
+                "message": local_message(local) if local else idle_message, "tools": tools}
     try:
         agents = max(0, int(raw.get("active_agents") or 0))
     except (TypeError, ValueError):
         agents = 0
-    busy = agents > 0 or bool(raw.get("gateway_busy"))
-    if busy and agents:
+    gateway_busy = agents > 0 or bool(raw.get("gateway_busy"))
+    if local and agents:
+        message = f"{local_message(local)}, {agents} gateway chat{'s' if agents != 1 else ''}"
+    elif local:
+        message = local_message(local)
+    elif gateway_busy and agents:
         message = f"{agents} agent{'s' if agents != 1 else ''} working"
-    elif busy:
+    elif gateway_busy:
         message = "Working"
     else:
         message = "Ready"
-    return {"gateway": "online", "activity": "working" if busy else "idle",
-            "provider": PROVIDER, "message": message, "tools": {"active": []}}
+    return {"gateway": "online", "activity": "working" if (gateway_busy or local) else "idle",
+            "provider": PROVIDER, "message": message, "tools": tools}
 
 
 def unavailable_status() -> dict:
-    return {"gateway": "offline", "activity": "idle", "provider": PROVIDER,
-            "message": "Hermes status unavailable", "tools": {"active": []}}
+    return map_status(None)
 
 
-def fetch_hermes(url: str) -> dict:
+_PROFILE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+
+
+def _is_launcher(argv: list[str], i: int) -> bool:
+    """`.../hermes` script path, or the bundled launcher's `python3 -I -c '<bootstrap>'` code."""
+    arg = argv[i]
+    if os.path.basename(arg) == "hermes":
+        return True
+    return i > 0 and argv[i - 1] == "-c" and "from hermes_cli.main import main" in arg
+
+
+def profile_from_cmdline(argv: list[str]) -> str | None:
+    """Profile of a `hermes [-p NAME|--profile NAME] chat ...` invocation, else None.
+
+    Looks after the last launcher element, so a delivery wrapper whose argv embeds the child
+    command resolves to the same profile as the child (deduplicated later).
+    """
+    starts = [i for i in range(len(argv)) if _is_launcher(argv, i)]
+    if not starts:
+        return None
+    rest = argv[starts[-1] + 1:]
+    profile = "default"
+    i = 0
+    while i < len(rest):
+        arg = rest[i]
+        if arg in ("-p", "--profile") and i + 1 < len(rest):
+            profile = rest[i + 1]
+            i += 2
+            continue
+        if arg.startswith(("-p=", "--profile=")):
+            profile = arg.split("=", 1)[1]
+        elif arg == "chat":
+            return profile if _PROFILE.match(profile) else None
+        elif not arg.startswith("-"):
+            return None  # another subcommand (gateway, dashboard, ...)
+        i += 1
+    return None
+
+
+def profiles_from_cmdlines(cmdlines) -> list[str]:
+    return sorted({name for argv in cmdlines if (name := profile_from_cmdline(argv))})
+
+
+def local_bot_runs(proc_root: str = "/proc") -> list[str]:
+    """Profiles with a running `hermes ... chat` process (bot-to-bot DMs, workers, one-shot runs).
+
+    Reads only process argument lists, never chat content. These runs happen outside the gateway,
+    so /api/status does not count them.
+    """
+    cmdlines = []
+    try:
+        entries = os.listdir(proc_root)
+    except OSError:
+        return []
+    for entry in entries:
+        if not entry.isdigit():
+            continue
+        try:
+            raw = Path(proc_root, entry, "cmdline").read_bytes()
+        except OSError:
+            continue
+        cmdlines.append([part.decode("utf-8", "replace") for part in raw.split(b"\0") if part])
+    return profiles_from_cmdlines(cmdlines)
+
+
+def fetch_hermes(url: str) -> dict | None:
+    """Raw /api/status payload, or None when Hermes's status endpoint is unreachable or malformed."""
     try:
         with urllib.request.urlopen(url, timeout=3) as response:
             raw = json.load(response)
     except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError, ValueError):
-        return unavailable_status()
-    return map_status(raw) if isinstance(raw, dict) else unavailable_status()
+        return None
+    return raw if isinstance(raw, dict) else None
 
 
 def post_status(bridge_url: str, token: str, status: dict) -> bool:
@@ -92,8 +177,8 @@ def post_status(bridge_url: str, token: str, status: dict) -> bool:
         return False
 
 
-def run_once(hermes_url: str, bridge_url: str, token: str) -> bool:
-    return post_status(bridge_url, token, fetch_hermes(hermes_url))
+def run_once(hermes_url: str, bridge_url: str, token: str, proc_root: str = "/proc") -> bool:
+    return post_status(bridge_url, token, map_status(fetch_hermes(hermes_url), local_bot_runs(proc_root)))
 
 
 def stop(_signum: int, _frame: object) -> None:
