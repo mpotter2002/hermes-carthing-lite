@@ -1,0 +1,1048 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="data:," />
+    <title>Agent Monitor</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      :root {
+        --bg: #071b18;
+        --surface: #102a25;
+        --surface-strong: #17342e;
+        --line: rgba(246, 238, 222, 0.2);
+        --grid: rgba(246, 238, 222, 0.055);
+        --text: #fff1dc;
+        --muted: rgba(255, 241, 220, 0.68);
+        --accent: #a8e6c5;
+        --accent-soft: rgba(168, 230, 197, 0.18);
+        --alert: #f0b44d;
+        --mark-bg: #e8e2d8;
+        --mark-ink: #111714;
+      }
+
+      body.agent-claude {
+        --bg: #171819;
+        --surface: #242628;
+        --surface-strong: #2d3032;
+        --line: rgba(255, 239, 224, 0.2);
+        --grid: rgba(255, 239, 224, 0.05);
+        --text: #fff0e2;
+        --muted: rgba(255, 240, 226, 0.66);
+        --accent: #d97757;
+        --accent-soft: rgba(217, 119, 87, 0.2);
+        --alert: #e6b55d;
+        --mark-bg: #f4e8dd;
+        --mark-ink: #d97757;
+      }
+
+      body.agent-codex {
+        --bg: #000000;
+        --surface: #111111;
+        --surface-strong: #1c1c1c;
+        --line: rgba(255, 255, 255, 0.22);
+        --text: #ffffff;
+        --muted: rgba(255, 255, 255, 0.66);
+        --accent: #ffffff;
+        --accent-soft: rgba(255, 255, 255, 0.16);
+        --alert: #ffffff;
+        --mark-bg: #000000;
+        --mark-ink: #ffffff;
+      }
+
+      body.light-mode.agent-hermes {
+        --bg: #f6faff;
+        --surface: #ffffff;
+        --surface-strong: #eaf2ff;
+        --line: rgba(14, 57, 170, 0.22);
+        --grid: rgba(14, 57, 170, 0.065);
+        --text: #0e39aa;
+        --muted: rgba(14, 57, 170, 0.64);
+        --accent: #1565d8;
+        --accent-soft: rgba(21, 101, 216, 0.13);
+        --alert: #c98b1f;
+        --mark-bg: #eef5ff;
+        --mark-ink: #0e39aa;
+      }
+
+      body.light-mode.agent-claude {
+        --bg: #fff9f5;
+        --surface: #ffffff;
+        --surface-strong: #ffede4;
+        --line: rgba(133, 57, 34, 0.22);
+        --grid: rgba(133, 57, 34, 0.06);
+        --text: #71331f;
+        --muted: rgba(113, 51, 31, 0.64);
+        --accent: #d86643;
+        --accent-soft: rgba(216, 102, 67, 0.14);
+        --alert: #b87918;
+        --mark-bg: #fff0e7;
+        --mark-ink: #d86643;
+      }
+
+      body.light-mode.agent-codex {
+        --bg: #ffffff;
+        --surface: #ffffff;
+        --surface-strong: #f0f0f0;
+        --line: rgba(0, 0, 0, 0.22);
+        --text: #000000;
+        --muted: rgba(0, 0, 0, 0.62);
+        --accent: #000000;
+        --accent-soft: rgba(0, 0, 0, 0.1);
+        --alert: #000000;
+        --mark-bg: #ffffff;
+        --mark-ink: #000000;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Courier New", Courier, monospace;
+      }
+
+      body {
+        text-transform: uppercase;
+      }
+
+      button {
+        font: inherit;
+      }
+
+      .screen {
+        width: 100%;
+        height: 100%;
+        display: grid;
+        grid-template-columns: 286px minmax(0, 1fr);
+        gap: 16px;
+        padding: 16px;
+      }
+
+      .identity,
+      .telemetry {
+        min-width: 0;
+        min-height: 0;
+      }
+
+      .identity {
+        position: relative;
+        display: grid;
+        grid-template-rows: 1fr auto;
+        align-items: center;
+        justify-items: center;
+        padding-bottom: 52px;
+        text-align: center;
+      }
+
+      .identity-inner {
+        width: 100%;
+        display: grid;
+        justify-items: center;
+      }
+
+      .mark-frame {
+        width: 208px;
+        height: 208px;
+        display: grid;
+        place-items: center;
+        border: 0;
+        background: transparent;
+      }
+
+      .mark-inner {
+        width: 176px;
+        height: 176px;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        background: transparent;
+      }
+
+      .agent-mark {
+        width: 76%;
+        height: 76%;
+        object-fit: contain;
+        color: var(--mark-ink);
+      }
+
+      body.agent-hermes .agent-mark {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        image-rendering: pixelated;
+      }
+
+      body.state-offline .agent-mark {
+        opacity: 0.72;
+      }
+
+      body.state-offline.agent-hermes .agent-mark {
+        filter: grayscale(0.7);
+      }
+
+      .connection {
+        margin-top: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .status-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--alert);
+      }
+
+      body.state-online .status-dot {
+        background: var(--accent);
+      }
+
+      h1 {
+        margin: 7px 0 0;
+        max-width: 260px;
+        overflow: hidden;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 50px;
+        line-height: 0.98;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .message {
+        min-height: 36px;
+        max-width: 250px;
+        margin: 8px 0 0;
+        overflow: hidden;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.35;
+      }
+
+      .agent-switcher {
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        display: grid;
+        grid-template-columns: repeat(4, 44px);
+        gap: 8px;
+      }
+
+      .agent-button,
+      .theme-button {
+        width: 44px;
+        height: 44px;
+        display: grid;
+        place-items: center;
+        padding: 9px;
+        border: 0;
+        background: transparent;
+        color: var(--text);
+      }
+
+      .agent-button img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        opacity: 0.6;
+      }
+
+      .agent-button[data-agent="hermes"] img {
+        object-fit: cover;
+        border-radius: 50%;
+        filter: grayscale(0.75);
+      }
+
+      .agent-button.active {
+        background: transparent;
+      }
+
+      .agent-button.active img {
+        opacity: 1;
+        filter: none;
+        transform: scale(1.14);
+      }
+
+      .theme-button {
+        color: var(--muted);
+        font-size: 24px;
+        line-height: 1;
+      }
+
+      body.light-mode.agent-codex .agent-mark,
+      body.light-mode .agent-button[data-agent="codex"] img {
+        filter: brightness(0);
+      }
+
+      .telemetry {
+        display: grid;
+        grid-template-rows: 72px minmax(0, 1fr) 92px 24px;
+        gap: 11px;
+      }
+
+      .metrics,
+      .detail-row {
+        display: grid;
+        gap: 11px;
+      }
+
+      .metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .detail-row {
+        grid-template-columns: 1.25fr 0.75fr;
+      }
+
+      .metric,
+      .main-panel,
+      .detail-panel {
+        min-width: 0;
+        min-height: 0;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--surface);
+      }
+
+      .metric,
+      .detail-panel {
+        padding: 12px;
+      }
+
+      .label {
+        display: block;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      .metric strong {
+        display: block;
+        margin-top: 7px;
+        overflow: hidden;
+        font-size: 23px;
+        line-height: 1;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .main-panel {
+        width: 100%;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        gap: 14px;
+        padding: 14px;
+        color: var(--text);
+        text-align: left;
+      }
+
+      .panel-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .panel-head strong {
+        max-width: 76%;
+        overflow: hidden;
+        color: var(--accent);
+        font-size: 33px;
+        line-height: 1;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .signal {
+        min-height: 0;
+        display: grid;
+        grid-template-columns: repeat(8, minmax(0, 1fr));
+        align-items: end;
+        gap: 7px;
+      }
+
+      .signal span {
+        min-height: 12px;
+        background: var(--accent);
+        opacity: 0.9;
+      }
+
+      .signal span:nth-child(2n) {
+        opacity: 0.55;
+      }
+
+      .signal span:nth-child(3n) {
+        background: var(--text);
+        opacity: 0.7;
+      }
+
+      body.state-offline .signal span {
+        background: var(--muted);
+        opacity: 0.25;
+      }
+
+      .token-split {
+        min-height: 0;
+        display: none;
+        align-content: center;
+        gap: 20px;
+      }
+
+      .main-panel.tokens .signal {
+        display: none;
+      }
+
+      .main-panel.tokens .token-split {
+        display: grid;
+      }
+
+      .token-row {
+        display: grid;
+        grid-template-columns: 54px minmax(0, 1fr) 74px;
+        align-items: center;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .bar-track {
+        height: 18px;
+        background: var(--surface-strong);
+      }
+
+      .bar-fill {
+        display: block;
+        width: 3%;
+        height: 100%;
+        background: var(--accent);
+      }
+
+      .token-row b {
+        overflow: hidden;
+        color: var(--text);
+        text-align: right;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .tools {
+        margin-top: 9px;
+        display: flex;
+        gap: 7px;
+        overflow: hidden;
+      }
+
+      .tool {
+        max-width: 132px;
+        padding: 7px 9px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        background: var(--surface-strong);
+        color: var(--text);
+        font-size: 11px;
+        font-weight: 700;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .token-total {
+        display: block;
+        margin-top: 9px;
+        overflow: hidden;
+        font-size: 34px;
+        line-height: 1;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .footer {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        align-items: center;
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 700;
+      }
+
+      .footer span:last-child {
+        justify-self: end;
+      }
+
+      body.agent-codex.state-offline .signal span {
+        opacity: 0.38;
+      }
+
+      @media (max-width: 640px) {
+        .screen {
+          grid-template-columns: 238px minmax(0, 1fr);
+          gap: 10px;
+          padding: 10px;
+        }
+
+        .mark-frame {
+          width: 176px;
+          height: 176px;
+        }
+
+        .mark-inner {
+          width: 150px;
+          height: 150px;
+        }
+
+        h1 {
+          font-size: 42px;
+        }
+
+        .telemetry {
+          gap: 8px;
+        }
+
+        .metrics,
+        .detail-row {
+          gap: 8px;
+        }
+      }
+    </style>
+  </head>
+  <body class="agent-hermes state-offline">
+    <main class="screen">
+      <section class="identity">
+        <div class="identity-inner">
+          <div class="mark-frame" aria-hidden="true">
+            <div class="mark-inner">
+              <img id="agentMark" class="agent-mark" src="./assets/hermes-portrait-inner.png" alt="" />
+            </div>
+          </div>
+
+          <div class="connection">
+            <span class="status-dot"></span>
+            <span id="gateway">offline</span>
+          </div>
+          <h1 id="agentName">Hermes</h1>
+          <p id="message" class="message">Waiting for Hermes signal</p>
+        </div>
+
+        <nav class="agent-switcher" aria-label="Choose agent">
+          <button class="agent-button active" type="button" data-agent="hermes" aria-label="Show Hermes">
+            <img src="./assets/hermes-portrait-inner.png" alt="" />
+          </button>
+          <button class="agent-button" type="button" data-agent="claude" aria-label="Show Claude">
+            <img src="./assets/claude.svg" alt="" />
+          </button>
+          <button class="agent-button" type="button" data-agent="codex" aria-label="Show Codex">
+            <img src="./assets/codex.svg" alt="" />
+          </button>
+          <button id="themeButton" class="theme-button" type="button" aria-label="Use light mode">
+            <span id="themeSymbol" aria-hidden="true">&#9788;</span>
+          </button>
+        </nav>
+      </section>
+
+      <section class="telemetry">
+        <section class="metrics">
+          <div class="metric">
+            <span class="label">Mode</span>
+            <strong id="activityMetric">offline</strong>
+          </div>
+          <div class="metric">
+            <span class="label">Model</span>
+            <strong id="model">waiting</strong>
+          </div>
+          <div class="metric">
+            <span class="label">Latency</span>
+            <strong id="latency">--</strong>
+          </div>
+        </section>
+
+        <button id="mainPanel" class="main-panel" type="button" aria-label="Toggle activity and token detail">
+          <div class="panel-head">
+            <span id="panelLabel" class="label">Activity</span>
+            <strong id="panelValue">offline</strong>
+          </div>
+
+          <div class="signal" aria-hidden="true">
+            <span style="height: 28%"></span>
+            <span style="height: 54%"></span>
+            <span style="height: 38%"></span>
+            <span style="height: 78%"></span>
+            <span style="height: 46%"></span>
+            <span style="height: 88%"></span>
+            <span style="height: 34%"></span>
+            <span style="height: 64%"></span>
+          </div>
+
+          <div class="token-split">
+            <div class="token-row">
+              <span>Input</span>
+              <i class="bar-track"><b id="inputBar" class="bar-fill"></b></i>
+              <b id="inputTokens">0</b>
+            </div>
+            <div class="token-row">
+              <span>Output</span>
+              <i class="bar-track"><b id="outputBar" class="bar-fill"></b></i>
+              <b id="outputTokens">0</b>
+            </div>
+          </div>
+        </button>
+
+        <section class="detail-row">
+          <div class="detail-panel">
+            <span class="label">Tools</span>
+            <div id="tools" class="tools">
+              <span class="tool">idle</span>
+            </div>
+          </div>
+          <div class="detail-panel">
+            <span class="label">Tokens</span>
+            <strong id="tokenTotal" class="token-total">0</strong>
+          </div>
+        </section>
+
+        <footer class="footer">
+          <span id="provider">Hermes</span>
+          <span id="age">standalone mode</span>
+        </footer>
+      </section>
+    </main>
+
+    <script src="./config.js"></script>
+    <script>
+      (function () {
+        "use strict";
+
+        var AGENTS = {
+          hermes: {
+            name: "Hermes",
+            mark: "./assets/hermes-portrait-inner.png",
+            provider: "Hermes",
+            model: "waiting",
+            message: "Waiting for Hermes signal"
+          },
+          claude: {
+            name: "Claude",
+            mark: "./assets/claude.svg",
+            provider: "Anthropic",
+            model: "waiting",
+            message: "Claude telemetry is not configured"
+          },
+          codex: {
+            name: "Codex",
+            mark: "./assets/codex.svg",
+            provider: "OpenAI",
+            model: "waiting",
+            message: "Codex telemetry is not configured"
+          }
+        };
+
+        var config = window.AGENT_MONITOR_CONFIG || {};
+        var sourceConfig = config.agents || {};
+        var basePollMs = numberOr(config.pollMs, 30000);
+        var staleMs = numberOr(config.staleMs, 120000);
+        var timeoutMs = numberOr(config.timeoutMs, 2200);
+        var agentOrder = ["hermes", "claude", "codex"];
+        var activeAgent = readStoredAgent();
+        var themeMode = readStoredTheme();
+        var detailMode = "signal";
+        var pollTimer = 0;
+        var requestId = 0;
+        var touchStartX = 0;
+        var touchStartY = 0;
+        var touchStartAt = 0;
+        var records = {};
+
+        agentOrder.forEach(function (agentId) {
+          records[agentId] = {
+            status: fallbackStatus(agentId),
+            updatedAt: 0,
+            failures: 0
+          };
+        });
+
+        function byId(id) {
+          return document.getElementById(id);
+        }
+
+        function numberOr(value, fallback) {
+          return typeof value === "number" && isFinite(value) && value > 0 ? value : fallback;
+        }
+
+        function readStoredAgent() {
+          try {
+            var stored = window.localStorage.getItem("agent-monitor.active");
+            return agentOrder.indexOf(stored) >= 0 ? stored : "hermes";
+          } catch (error) {
+            return "hermes";
+          }
+        }
+
+        function storeAgent(agentId) {
+          try {
+            window.localStorage.setItem("agent-monitor.active", agentId);
+          } catch (error) {
+            return;
+          }
+        }
+
+        function readStoredTheme() {
+          try {
+            return window.localStorage.getItem("agent-monitor.theme") === "light" ? "light" : "dark";
+          } catch (error) {
+            return "dark";
+          }
+        }
+
+        function storeTheme() {
+          try {
+            window.localStorage.setItem("agent-monitor.theme", themeMode);
+          } catch (error) {
+            return;
+          }
+        }
+
+        function fallbackStatus(agentId) {
+          var agent = AGENTS[agentId];
+          return {
+            gateway: "offline",
+            activity: "offline",
+            provider: agent.provider,
+            model: agent.model,
+            latencyMs: null,
+            tokens: { input: 0, output: 0, total: 0 },
+            tools: { active: [] },
+            message: agent.message,
+            source: "offline"
+          };
+        }
+
+        function setText(id, value) {
+          byId(id).textContent = value;
+        }
+
+        function compact(value, maxLength) {
+          var text = String(value || "").replace(/\s+/g, " ").trim();
+          if (text.length <= maxLength) return text;
+          return text.slice(0, maxLength - 3) + "...";
+        }
+
+        function formatNumber(value) {
+          var number = Math.max(0, Math.round(Number(value) || 0));
+          if (number >= 1000000) return (number / 1000000).toFixed(1) + "m";
+          if (number >= 1000) return (number / 1000).toFixed(1) + "k";
+          return String(number);
+        }
+
+        function render() {
+          var agent = AGENTS[activeAgent];
+          var record = records[activeAgent];
+          var status = record.status;
+          var tokens = status.tokens || { input: 0, output: 0, total: 0 };
+          var total = Math.max(Number(tokens.total) || (Number(tokens.input) || 0) + (Number(tokens.output) || 0), 0);
+          var tokenMax = Math.max(total, 1);
+          var inputPercent = Math.max(3, Math.round(((Number(tokens.input) || 0) / tokenMax) * 100));
+          var outputPercent = Math.max(3, Math.round(((Number(tokens.output) || 0) / tokenMax) * 100));
+
+          document.body.className = "agent-" + activeAgent
+            + " state-" + (status.gateway === "online" ? "online" : "offline")
+            + (themeMode === "light" ? " light-mode" : "");
+          byId("agentMark").src = agent.mark;
+          setText("agentName", agent.name);
+          setText("gateway", status.gateway || "offline");
+          setText("message", compact(status.message || agent.message, 74));
+          setText("activityMetric", compact(status.activity || "offline", 14));
+          setText("model", compact(status.model || "waiting", 15));
+          setText("latency", status.latencyMs == null ? "--" : Math.round(status.latencyMs) + "ms");
+          setText("provider", compact(status.provider || agent.provider, 24));
+          setText("tokenTotal", formatNumber(total));
+          setText("inputTokens", formatNumber(tokens.input));
+          setText("outputTokens", formatNumber(tokens.output));
+          byId("inputBar").style.width = inputPercent + "%";
+          byId("outputBar").style.width = outputPercent + "%";
+
+          byId("mainPanel").className = detailMode === "tokens" ? "main-panel tokens" : "main-panel";
+          setText("panelLabel", detailMode === "tokens" ? "Token Split" : "Activity");
+          setText("panelValue", detailMode === "tokens" ? formatNumber(total) : compact(status.activity || "offline", 18));
+
+          renderTools(status.tools && status.tools.active);
+          renderSwitcher();
+          renderThemeButton();
+          renderAge();
+        }
+
+        function renderTools(tools) {
+          var container = byId("tools");
+          var items = tools && tools.length ? tools.slice(0, 3) : ["idle"];
+          while (container.firstChild) container.removeChild(container.firstChild);
+          items.forEach(function (tool) {
+            var item = document.createElement("span");
+            item.className = "tool";
+            item.textContent = compact(tool, 18);
+            container.appendChild(item);
+          });
+        }
+
+        function renderSwitcher() {
+          var buttons = document.querySelectorAll(".agent-button");
+          for (var index = 0; index < buttons.length; index += 1) {
+            buttons[index].className = buttons[index].getAttribute("data-agent") === activeAgent
+              ? "agent-button active"
+              : "agent-button";
+          }
+        }
+
+        function renderThemeButton() {
+          var useLight = themeMode === "dark";
+          byId("themeButton").setAttribute("aria-label", useLight ? "Use light mode" : "Use dark mode");
+          setText("themeSymbol", useLight ? "\u263c" : "\u263e");
+        }
+
+        function renderAge() {
+          var record = records[activeAgent];
+          var source = sourceConfig[activeAgent] || {};
+          if (!source.statusUrl) {
+            setText("age", "local standby");
+            return;
+          }
+          if (!record.updatedAt) {
+            setText("age", record.failures ? "reconnecting" : "waiting");
+            return;
+          }
+          var ageSeconds = Math.max(0, Math.round((Date.now() - record.updatedAt) / 1000));
+          setText("age", ageSeconds > 120 ? "stale " + ageSeconds + "s" : "updated " + ageSeconds + "s");
+        }
+
+        function switchAgent(agentId) {
+          if (agentOrder.indexOf(agentId) < 0) return;
+          activeAgent = agentId;
+          detailMode = "signal";
+          storeAgent(agentId);
+          requestId += 1;
+          clearTimeout(pollTimer);
+          render();
+          pollActive(true);
+        }
+
+        function cycleAgent(direction) {
+          var currentIndex = agentOrder.indexOf(activeAgent);
+          var nextIndex = (currentIndex + direction + agentOrder.length) % agentOrder.length;
+          switchAgent(agentOrder[nextIndex]);
+        }
+
+        function toggleDetail() {
+          detailMode = detailMode === "signal" ? "tokens" : "signal";
+          render();
+        }
+
+        function toggleTheme() {
+          themeMode = themeMode === "dark" ? "light" : "dark";
+          storeTheme();
+          render();
+        }
+
+        function schedulePoll(delay) {
+          clearTimeout(pollTimer);
+          pollTimer = window.setTimeout(function () {
+            pollActive(false);
+          }, delay);
+        }
+
+        function pollActive(force) {
+          var agentId = activeAgent;
+          var record = records[agentId];
+          var source = sourceConfig[agentId] || {};
+          var statusUrl = typeof source.statusUrl === "string" ? source.statusUrl.trim() : "";
+          var now = Date.now();
+
+          if (!statusUrl) {
+            render();
+            return;
+          }
+
+          if (document.hidden) {
+            schedulePoll(basePollMs);
+            return;
+          }
+
+          if (!force && record.updatedAt && now - record.updatedAt < basePollMs - 500) {
+            schedulePoll(basePollMs);
+            return;
+          }
+
+          var thisRequest = ++requestId;
+          var startedAt = Date.now();
+          var controller = window.AbortController ? new AbortController() : null;
+          var timeout = controller ? window.setTimeout(function () {
+            controller.abort();
+          }, timeoutMs) : 0;
+
+          fetch(statusUrl, {
+            cache: "no-store",
+            signal: controller ? controller.signal : undefined
+          })
+            .then(function (response) {
+              if (!response.ok) throw new Error("HTTP " + response.status);
+              return response.json();
+            })
+            .then(function (raw) {
+              if (thisRequest !== requestId || agentId !== activeAgent) return;
+              record.status = normalizeStatus(raw, agentId, Date.now() - startedAt);
+              record.updatedAt = Date.now();
+              record.failures = 0;
+              render();
+            })
+            .catch(function () {
+              if (thisRequest !== requestId || agentId !== activeAgent) return;
+              record.failures += 1;
+              if (!record.updatedAt || Date.now() - record.updatedAt > staleMs) {
+                record.status = fallbackStatus(agentId);
+              }
+              render();
+            })
+            .then(function () {
+              if (timeout) window.clearTimeout(timeout);
+              if (thisRequest !== requestId || agentId !== activeAgent) return;
+              var backoff = Math.min(basePollMs * Math.pow(2, record.failures), 300000);
+              schedulePoll(record.failures ? backoff : basePollMs);
+            });
+        }
+
+        function normalizeStatus(raw, agentId, latencyMs) {
+          var source = raw && typeof raw === "object" ? raw : {};
+          var usage = pickObject(source, ["tokens", "usage", "token_usage"]);
+          var tools = pickObject(source, ["tools", "tooling"]);
+          var input = pickNumber(usage, ["input", "prompt_tokens", "input_tokens", "tokens_in"]);
+          var output = pickNumber(usage, ["output", "completion_tokens", "output_tokens", "tokens_out"]);
+          var total = pickNumber(usage, ["total", "total_tokens", "tokensUsed", "tokens_used"]) || input + output;
+          var gateway = gatewayFrom(pickString(source, ["gateway", "status", "state", "mode"]));
+          var activity = activityFrom(pickString(source, ["activity", "phase", "current_state", "mode"]));
+          var agent = AGENTS[agentId];
+
+          return {
+            gateway: gateway,
+            activity: activity,
+            provider: pickString(source, ["provider", "llm_provider", "backend"]) || agent.provider,
+            model: pickString(source, ["model", "model_name", "active_model", "planLabel", "plan"]) || "connected",
+            latencyMs: pickNumber(source, ["latencyMs", "latency_ms"]) || latencyMs,
+            tokens: { input: input, output: output, total: total },
+            tools: {
+              active: pickList(tools, ["active", "active_tools", "running"])
+            },
+            message: pickString(source, ["message", "detail", "last_event", "note"]) || "Telemetry responding",
+            source: "live"
+          };
+        }
+
+        function pickObject(source, keys) {
+          for (var index = 0; index < keys.length; index += 1) {
+            var value = source[keys[index]];
+            if (value && typeof value === "object" && !Array.isArray(value)) return value;
+          }
+          return {};
+        }
+
+        function pickString(source, keys) {
+          for (var index = 0; index < keys.length; index += 1) {
+            var value = source[keys[index]];
+            if (typeof value === "string" && value.trim()) return value.trim();
+          }
+          return "";
+        }
+
+        function pickNumber(source, keys) {
+          for (var index = 0; index < keys.length; index += 1) {
+            var value = Number(source[keys[index]]);
+            if (isFinite(value) && value > 0) return value;
+          }
+          return 0;
+        }
+
+        function pickList(source, keys) {
+          for (var index = 0; index < keys.length; index += 1) {
+            var value = source[keys[index]];
+            if (Array.isArray(value)) return value.map(String).filter(Boolean).slice(0, 3);
+            if (typeof value === "string" && value.trim()) return [value.trim()];
+          }
+          return [];
+        }
+
+        function gatewayFrom(value) {
+          var normalized = String(value || "").toLowerCase();
+          if (["ok", "online", "healthy", "ready", "up", "live", "connected"].indexOf(normalized) >= 0) return "online";
+          if (["warn", "warning", "degraded", "partial"].indexOf(normalized) >= 0) return "degraded";
+          return "offline";
+        }
+
+        function activityFrom(value) {
+          var normalized = String(value || "").toLowerCase();
+          if (normalized.indexOf("tool") >= 0) return "tooling";
+          if (normalized.indexOf("think") >= 0 || normalized.indexOf("reason") >= 0) return "thinking";
+          if (normalized.indexOf("work") >= 0 || normalized.indexOf("run") >= 0 || normalized.indexOf("busy") >= 0) return "working";
+          if (normalized.indexOf("idle") >= 0 || normalized.indexOf("ready") >= 0 || normalized.indexOf("connected") >= 0) return "idle";
+          return "idle";
+        }
+
+        function wireControls() {
+          var buttons = document.querySelectorAll(".agent-button");
+          for (var index = 0; index < buttons.length; index += 1) {
+            buttons[index].addEventListener("click", function () {
+              switchAgent(this.getAttribute("data-agent"));
+            });
+          }
+
+          byId("mainPanel").addEventListener("click", toggleDetail);
+          byId("themeButton").addEventListener("click", toggleTheme);
+
+          document.addEventListener("touchstart", function (event) {
+            if (!event.touches || !event.touches.length) return;
+            touchStartX = event.touches[0].clientX;
+            touchStartY = event.touches[0].clientY;
+            touchStartAt = Date.now();
+          }, { passive: true });
+
+          document.addEventListener("touchend", function (event) {
+            if (!event.changedTouches || !event.changedTouches.length) return;
+            var deltaX = event.changedTouches[0].clientX - touchStartX;
+            var deltaY = event.changedTouches[0].clientY - touchStartY;
+            var elapsed = Date.now() - touchStartAt;
+            if (Math.abs(deltaX) > 72 && Math.abs(deltaX) > Math.abs(deltaY) && elapsed < 900) {
+              cycleAgent(deltaX < 0 ? 1 : -1);
+            }
+          }, { passive: true });
+
+          document.addEventListener("keydown", function (event) {
+            if (event.key === "ArrowLeft") cycleAgent(-1);
+            if (event.key === "ArrowRight") cycleAgent(1);
+            if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") toggleDetail();
+            if (event.key === "t" || event.key === "T") toggleTheme();
+          });
+
+          document.addEventListener("visibilitychange", function () {
+            if (!document.hidden) pollActive(true);
+          });
+
+          window.addEventListener("online", function () {
+            pollActive(true);
+          });
+
+          window.setInterval(renderAge, 5000);
+        }
+
+        wireControls();
+        render();
+        pollActive(true);
+      })();
+    </script>
+  </body>
+</html>

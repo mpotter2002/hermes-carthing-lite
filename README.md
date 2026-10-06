@@ -1,0 +1,112 @@
+# Agent Monitor for Car Thing
+
+For continuation by the Hermes agent, see [HANDOFF.md](HANDOFF.md).
+
+A single-renderer, low-memory monitor for Hermes, Claude, and Codex. It is designed for the Car Thing's 488 MB RAM limit and avoids the DeskThing shell plus iframe combination that causes Chromium to be killed by `earlyoom`.
+
+## Controls
+
+- Tap one of the three lower-left agent icons to switch screens.
+- Tap the sun/moon button beside them to toggle dark and light mode.
+- Swipe left or right anywhere to move between agents.
+- Tap the large activity panel to toggle activity and token detail.
+- Left/right keyboard or mapped hardware actions also switch agents; `T` toggles the theme.
+
+## Status Sources
+
+Edit `config.js` to set one JSON status endpoint per agent. Only the visible agent is polled. Failed requests use exponential backoff up to five minutes.
+
+The normalizer accepts fields such as:
+
+```json
+{
+  "gateway": "online",
+  "activity": "working",
+  "provider": "OpenAI",
+  "model": "gpt-5",
+  "latencyMs": 42,
+  "tokens": { "input": 1200, "output": 340, "total": 1540 },
+  "tools": { "active": ["shell", "search"] },
+  "message": "Running a task"
+}
+```
+
+## Claude and Codex Bridge
+
+The monitor includes a dependency-free status bridge designed to run on a Raspberry Pi. Claude and Codex hooks write small status snapshots on the Mac. One launchd forwarder sends only the newest snapshot to the Pi, and the Pi exposes it to the Car Thing through `adb reverse`.
+
+Prompt text and tool arguments are not forwarded.
+
+Install the Mac hooks and forwarder:
+
+```bash
+python3 scripts/install-mac-hooks.py \
+  --base-url http://pi-pihole.local:8892 \
+  --token YOUR_SHARED_TOKEN
+```
+
+On the Pi, clone or copy this project and run:
+
+```bash
+sudo ./scripts/install-pi.sh YOUR_SHARED_TOKEN
+```
+
+To make a small transfer archive on the Mac:
+
+```bash
+./scripts/package-pi.sh
+scp output/agent-monitor-pi.tar.gz YOUR_PI_USER@pi-pihole.local:~
+```
+
+Then, after signing into the Pi:
+
+```bash
+mkdir -p ~/agent-monitor
+tar -xzf ~/agent-monitor-pi.tar.gz -C ~/agent-monitor
+cd ~/agent-monitor
+sudo ./scripts/install-pi.sh YOUR_SHARED_TOKEN
+```
+
+After the Car Thing is connected to the Pi by USB, install the latest monitor UI:
+
+```bash
+./scripts/install-standalone.sh
+```
+
+Check the Pi services:
+
+```bash
+systemctl status agent-monitor-bridge.service
+systemctl status agent-monitor-link.service
+curl http://127.0.0.1:8892/health
+adb devices
+adb reverse --list
+```
+
+Codex snapshots hook configuration at session start. Start a new Codex task after installation and approve the project hook through `/hooks` if prompted.
+
+Remove the Mac hooks and forwarder without touching other Claude or Codex hooks:
+
+```bash
+python3 scripts/install-mac-hooks.py --remove
+```
+
+## Device Modes
+
+Install standalone mode without deleting DeskThing:
+
+```bash
+./scripts/install-standalone.sh
+```
+
+Restore the original DeskThing display:
+
+```bash
+./scripts/restore-deskthing.sh
+```
+
+The scripts keep the DeskThing webapp untouched and only change Chromium's startup page. The original supervisor config is backed up once at `/etc/supervisord.conf.deskthing-backup`.
+
+## Outlet Power
+
+The current Car Thing firmware has no active Wi-Fi network interface, so the standalone UI remains stable and navigable on outlet power but cannot receive live remote telemetry until the device has a network path. Empty source URLs intentionally show a local standby state without retry traffic.

@@ -1,0 +1,13 @@
+[Unit]
+Description=Car Thing USB status bridge link
+After=agent-monitor-bridge.service
+Requires=agent-monitor-bridge.service
+
+[Service]
+Type=simple
+ExecStart=/opt/agent-monitor/carthing-link.sh
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

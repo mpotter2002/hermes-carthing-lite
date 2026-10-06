@@ -1,0 +1,5 @@
+{
+  "baseUrl": "http://pi-pihole.local:8892",
+  "token": "replace-with-a-random-token",
+  "heartbeatSeconds": 30
+}

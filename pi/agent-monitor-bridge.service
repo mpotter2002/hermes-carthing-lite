@@ -1,0 +1,23 @@
+[Unit]
+Description=Car Thing agent monitor status bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+StateDirectory=agent-monitor
+EnvironmentFile=/etc/agent-monitor.env
+Environment=AGENT_MONITOR_HOST=0.0.0.0
+Environment=AGENT_MONITOR_PORT=8892
+Environment=AGENT_MONITOR_DATA_FILE=/var/lib/agent-monitor/status.json
+ExecStart=/usr/bin/python3 /opt/agent-monitor/server.py
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target
