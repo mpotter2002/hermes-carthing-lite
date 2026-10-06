@@ -37,6 +37,18 @@ The monitor includes a dependency-free status bridge designed to run on a Raspbe
 
 Prompt text and tool arguments are not forwarded.
 
+The bridge listens on `127.0.0.1` by default, which is all `adb reverse` needs, and refuses to start without a write token. Prefer `AGENT_MONITOR_TOKEN_FILE` pointing at a `chmod 0600` file; `AGENT_MONITOR_TOKEN` still works. The Mac forwarder below needs the bridge reachable from the Mac, so it requires setting `AGENT_MONITOR_HOST` to a private address (for example a Tailscale IP). Do not bind it to a public interface.
+
+## Hermes Telemetry
+
+`hooks/hermes_status.py` polls Hermes's public liveness endpoint (`GET http://127.0.0.1:9119/api/status`: gateway state and active agent count, no chat content or secrets) every 15 seconds and posts online/offline and working/idle to the bridge's `hermes` screen. It reports no model or token counts because that endpoint has neither.
+
+```bash
+AGENT_MONITOR_TOKEN_FILE=~/.local/state/agent-monitor/token python3 hooks/hermes_status.py
+```
+
+Run the tests with `python3 -m unittest discover -s tests -v`.
+
 Install the Mac hooks and forwarder:
 
 ```bash

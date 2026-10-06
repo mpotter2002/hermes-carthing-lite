@@ -8,7 +8,7 @@ Type=simple
 DynamicUser=yes
 StateDirectory=agent-monitor
 EnvironmentFile=/etc/agent-monitor.env
-Environment=AGENT_MONITOR_HOST=0.0.0.0
+Environment=AGENT_MONITOR_HOST=127.0.0.1
 Environment=AGENT_MONITOR_PORT=8892
 Environment=AGENT_MONITOR_DATA_FILE=/var/lib/agent-monitor/status.json
 ExecStart=/usr/bin/python3 /opt/agent-monitor/server.py
