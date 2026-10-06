@@ -887,14 +887,18 @@
             controller.abort();
           }, timeoutMs) : 0;
 
-          fetch(statusUrl, {
+          // Chromium 69's fetch() rejects file:// URLs; XHR can read them with --allow-file-access-from-files.
+          // A file: source is a status file pushed to the device by the Pi (no network path needed).
+          var load = /^file:/i.test(statusUrl) ? readLocalJson(statusUrl, timeoutMs) : fetch(statusUrl, {
             cache: "no-store",
             signal: controller ? controller.signal : undefined
           })
             .then(function (response) {
               if (!response.ok) throw new Error("HTTP " + response.status);
               return response.json();
-            })
+            });
+
+          load
             .then(function (raw) {
               if (thisRequest !== requestId || agentId !== activeAgent) return;
               record.status = normalizeStatus(raw, agentId, Date.now() - startedAt);
@@ -916,6 +920,21 @@
               var backoff = Math.min(basePollMs * Math.pow(2, record.failures), 300000);
               schedulePoll(record.failures ? backoff : basePollMs);
             });
+        }
+
+        function readLocalJson(url, limitMs) {
+          return new Promise(function (resolve, reject) {
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", url, true);
+            xhr.timeout = limitMs;
+            xhr.onload = function () {
+              // file: responses report status 0 on success.
+              if (xhr.status !== 0 && xhr.status !== 200) return reject(new Error("status " + xhr.status));
+              try { resolve(JSON.parse(xhr.responseText)); } catch (error) { reject(error); }
+            };
+            xhr.onerror = xhr.ontimeout = function () { reject(new Error("local status unavailable")); };
+            xhr.send();
+          });
         }
 
         function normalizeStatus(raw, agentId, latencyMs) {
