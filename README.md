@@ -110,3 +110,13 @@ The scripts keep the DeskThing webapp untouched and only change Chromium's start
 ## Outlet Power
 
 The current Car Thing firmware has no active Wi-Fi network interface, so the standalone UI remains stable and navigable on outlet power but cannot receive live remote telemetry until the device has a network path. Empty source URLs intentionally show a local standby state without retry traffic.
+
+## Push Mode (no `adb reverse`)
+
+On this Car Thing, `adb reverse` succeeds and then the device's adb connection drops off USB until it is replugged, so the device cannot poll the Pi. Instead, `pi/push-status.sh` reads the bridge's Hermes status every 15 seconds and copies it to `/tmp/agent-monitor/hermes.json` on the device with plain `adb push` (an in-memory tmpfs, cleared on reboot):
+
+```bash
+CARTHING_SERIAL=<serial from adb devices> bash pi/push-status.sh
+```
+
+Point the device's `config.js` at the pushed file, for example `statusUrl: "file:///tmp/agent-monitor/hermes.json"`. The page reads `file:` sources with `XMLHttpRequest`, because the device's Chromium 69 rejects `fetch()` for `file:` URLs; it already runs with `--allow-file-access-from-files`. HTTP sources still use `fetch()`.
