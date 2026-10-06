@@ -214,29 +214,112 @@ class MapStatusTests(unittest.TestCase):
         self.assertEqual(status["gateway"], "offline")
 
 
+class LocalBotRunTests(unittest.TestCase):
+    """Bot-to-bot DMs and workers run as `hermes -p <profile> chat` processes outside the gateway."""
+
+    def test_profiles_from_cmdlines_dedupes_wrapper_and_child(self):
+        cmdlines = [
+            # delivery wrapper carries the child command in its argv
+            ["/x/python3", "/x/hermes-agent/tools/bot_mode_dm.py", "--run-delivery", "query-file", "/tmp/q.txt",
+             "--profile-home", "/home/u/.hermes/profiles/merge-gate",
+             "/x/.hermes/bin/hermes", "-p", "merge-gate", "chat", "--in", "~", "-Q"],
+            ["/x/python3", "/x/.hermes/bin/hermes", "-p", "merge-gate", "chat", "--in", "~", "-Q"],
+            ["/x/.hermes/bin/hermes", "--profile", "engineer", "chat", "--provider", "openai-codex", "-Q"],
+            ["/x/.hermes/bin/hermes", "-p=research", "chat", "-q", "hi"],
+            ["/x/.hermes/bin/hermes", "chat", "-q", "plain run without -p"],
+            # what actually runs: the launcher script execs bundled python with its bootstrap code
+            ["/x/tools/python-3.14/bin/python3", "-I", "-c",
+             "import os, re, sys\nsys.path.insert(0, '/x/hermes-agent')\nimport hermes_bootstrap\n"
+             "from hermes_cli.main import main\nsys.exit(main())\n",
+             "-p", "watchtower", "chat", "--in", "~", "-c", "Bot Chat", "-Q"],
+        ]
+        self.assertEqual(
+            hermes_status.profiles_from_cmdlines(cmdlines),
+            ["default", "engineer", "merge-gate", "research", "watchtower"],
+        )
+
+    def test_ignores_non_chat_and_non_hermes_processes(self):
+        cmdlines = [
+            ["/x/.hermes/bin/hermes", "-p", "default", "gateway", "run"],
+            ["/x/.hermes/bin/hermes", "dashboard"],
+            ["/x/python3", "-I", "-c", "from hermes_cli.main import main\nmain()", "-p", "engineer", "--tui"],
+            ["/x/python3", "-c", "print('chat')", "-p", "x", "chat"],
+            ["/usr/bin/vim", "-p", "chat"],
+            ["grep", "hermes -p merge-gate chat"],
+            [],
+        ]
+        self.assertEqual(hermes_status.profiles_from_cmdlines(cmdlines), [])
+
+    def test_local_runs_mark_working_and_name_bots(self):
+        raw = {"gateway_running": True, "active_agents": 0, "gateway_busy": False}
+        one = hermes_status.map_status(raw, ["merge-gate"])
+        self.assertEqual(one["activity"], "working")
+        self.assertEqual(one["message"], "merge-gate working")
+        self.assertEqual(one["tools"], {"active": ["merge-gate"]})
+        many = hermes_status.map_status(raw, ["a", "b", "c", "d"])
+        self.assertEqual(many["message"], "4 bots working: a, b, c, d")
+        self.assertEqual(many["tools"], {"active": ["a", "b", "c", "d"]})
+
+    def test_gateway_agents_and_local_runs_combine(self):
+        raw = {"gateway_running": True, "active_agents": 1, "gateway_busy": True}
+        status = hermes_status.map_status(raw, ["merge-gate"])
+        self.assertEqual(status["activity"], "working")
+        self.assertEqual(status["message"], "merge-gate working, 1 gateway chat")
+
+    def test_local_runs_still_shown_when_gateway_down(self):
+        status = hermes_status.map_status({"gateway_running": False}, ["merge-gate"])
+        self.assertEqual(status["gateway"], "offline")
+        self.assertEqual(status["activity"], "working")
+        self.assertEqual(status["message"], "merge-gate working")
+
+    def test_scan_reads_proc_style_tree(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for pid, argv in {"101": ["/x/hermes", "-p", "merge-gate", "chat"], "102": ["/bin/sh"]}.items():
+                Path(tmp, pid).mkdir()
+                Path(tmp, pid, "cmdline").write_bytes(b"\0".join(a.encode() for a in argv) + b"\0")
+            Path(tmp, "self").mkdir()
+            Path(tmp, "999").mkdir()  # process exited: no cmdline
+            self.assertEqual(hermes_status.local_bot_runs(tmp), ["merge-gate"])
+
+
 class ProducerEndToEndTests(unittest.TestCase):
     def test_once_posts_mapped_status_to_bridge(self):
         hermes = FakeHermes()
         with tempfile.TemporaryDirectory() as tmp:
             path = token_file(tmp)
+            no_procs = Path(tmp, "proc")
+            no_procs.mkdir()
+            bot_procs = Path(tmp, "proc-bots")
+            Path(bot_procs, "4242").mkdir(parents=True)
+            Path(bot_procs, "4242", "cmdline").write_bytes(b"/x/hermes\0-p\0merge-gate\0chat\0")
             bridge = BridgeProcess({"AGENT_MONITOR_TOKEN_FILE": path})
             try:
                 bridge.wait_ready()
                 base = f"http://127.0.0.1:{bridge.port}"
 
+                def latest():
+                    with urllib.request.urlopen(f"{base}/status/hermes", timeout=2) as response:
+                        return json.load(response)
+
                 hermes.payload = {"gateway_running": True, "active_agents": 1, "gateway_busy": True}
-                self.assertTrue(hermes_status.run_once(hermes.url, base, "test-token-123"))
-                with urllib.request.urlopen(f"{base}/status/hermes", timeout=2) as response:
-                    got = json.load(response)
+                self.assertTrue(hermes_status.run_once(hermes.url, base, "test-token-123", str(no_procs)))
+                got = latest()
                 self.assertEqual(got["gateway"], "online")
                 self.assertEqual(got["activity"], "working")
 
-                hermes.payload = None  # Hermes status endpoint failing
-                self.assertTrue(hermes_status.run_once(hermes.url, base, "test-token-123"))
-                with urllib.request.urlopen(f"{base}/status/hermes", timeout=2) as response:
-                    self.assertEqual(json.load(response)["gateway"], "offline")
+                hermes.payload = {"gateway_running": True, "active_agents": 0, "gateway_busy": False}
+                self.assertTrue(hermes_status.run_once(hermes.url, base, "test-token-123", str(no_procs)))
+                self.assertEqual(latest()["activity"], "idle")
+                self.assertTrue(hermes_status.run_once(hermes.url, base, "test-token-123", str(bot_procs)))
+                got = latest()
+                self.assertEqual(got["activity"], "working")
+                self.assertEqual(got["message"], "merge-gate working")
 
-                self.assertFalse(hermes_status.run_once(hermes.url, base, "wrong-token"))
+                hermes.payload = None  # Hermes status endpoint failing
+                self.assertTrue(hermes_status.run_once(hermes.url, base, "test-token-123", str(no_procs)))
+                self.assertEqual(latest()["gateway"], "offline")
+
+                self.assertFalse(hermes_status.run_once(hermes.url, base, "wrong-token", str(no_procs)))
             finally:
                 bridge.stop()
                 hermes.close()
