@@ -9,12 +9,21 @@
 <link rel="stylesheet" href="face.css">
 </head>
 <body>
-<main class="companion">
-  <header><span class="brand">HERMES</span></header>
+<main class="companion" data-view="face">
+  <header><span class="brand">HERMES</span><output id="activity" hidden></output></header>
   <section class="face-space" aria-label="Supplied Hermes head artwork">
     <canvas id="face" width="480" height="480" role="img" aria-label="Blue dot-art Hermes head, with decorative blinking"></canvas>
   </section>
-  <h1>Hermes</h1>
+  <section id="content" class="content-view" hidden aria-label="Full companion content">
+    <p id="content-reply"></p>
+    <img id="content-image" hidden alt="">
+    <div id="cards"></div>
+  </section>
+  <section class="response-area" aria-label="Latest Hermes reply"><h1 id="reply">Hermes</h1></section>
+  <nav class="controls" aria-label="Display controls" hidden>
+    <button id="back" type="button" aria-label="Back to face"></button>
+    <button id="show-content" type="button" aria-label="Show full content"></button>
+  </nav>
 </main>
 <script src="desktop-glyph.js"></script>
 <script src="gpu.js"></script>

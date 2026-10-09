@@ -1,23 +1,24 @@
 (function (root) {
   'use strict';
   function createFrame(asset) {
-    var frame = { data: new Float32Array(asset.dots.length * 6), count: 0 };
+    var frame = { data: new Float32Array(asset.dots.length * 7), count: 0 };
     var offset = 0, x, y, radius;
     var colors = {};
     asset.dots.forEach(function (dot) {
       var value = parseInt(dot.c.slice(1), 16);
       colors[dot.c] = [(value >> 16 & 255) / 255, (value >> 8 & 255) / 255, (value & 255) / 255];
     });
-    function put(color) {
-      var k = frame.count++ * 6, rgb = colors[color];
+    function put(color, alpha) {
+      var k = frame.count++ * 7, rgb = colors[color];
       frame.data[k] = x; frame.data[k + 1] = y + offset; frame.data[k + 2] = radius;
-      frame.data[k + 3] = rgb[0]; frame.data[k + 4] = rgb[1]; frame.data[k + 5] = rgb[2];
+      frame.data[k + 3] = rgb[0]; frame.data[k + 4] = rgb[1]; frame.data[k + 5] = rgb[2]; frame.data[k + 6] = alpha;
     }
     var bridge = {
+      fillStyle: '', globalAlpha: 1,
       clearRect: function () { frame.count = 0; },
       beginPath: function () {},
       arc: function (a, b, r) { x = a; y = b; radius = r; },
-      fill: function () { put(bridge.fillStyle); }
+      fill: function () { put(bridge.fillStyle, bridge.globalAlpha); }
     };
     frame.draw = function (glyph, time) {
       offset = glyph.target().state === 'working' ? 2 : 0;
@@ -28,7 +29,7 @@
       var scale = 480 / asset.grid;
       asset.dots.forEach(function (dot) {
         x = (dot.x + .5) * scale; y = (dot.y + .5) * scale; radius = dot.r * scale;
-        put(dot.c);
+        put(dot.c, 1);
       });
     };
     return frame;
@@ -43,8 +44,8 @@
       return result;
     }
     var program = gl.createProgram();
-    var vertex = shader(gl.VERTEX_SHADER, 'attribute vec3 dot; attribute vec3 color; varying vec3 tint; varying float diameter; void main(){gl_Position=vec4(dot.x/240.0-1.0,1.0-dot.y/240.0,0.0,1.0); diameter=dot.z*2.0; gl_PointSize=diameter+2.0; tint=color;}');
-    var fragment = shader(gl.FRAGMENT_SHADER, 'precision mediump float; varying vec3 tint; varying float diameter; void main(){float distance=length(gl_PointCoord-vec2(0.5))*(diameter+2.0); float alpha=1.0-smoothstep(diameter*0.5-0.5,diameter*0.5+0.5,distance); gl_FragColor=vec4(tint,alpha);}');
+    var vertex = shader(gl.VERTEX_SHADER, 'attribute vec3 dot; attribute vec3 color; attribute float opacity; varying vec3 tint; varying float dotOpacity; varying float diameter; void main(){gl_Position=vec4(dot.x/240.0-1.0,1.0-dot.y/240.0,0.0,1.0); diameter=dot.z*2.0; gl_PointSize=diameter+2.0; tint=color; dotOpacity=opacity;}');
+    var fragment = shader(gl.FRAGMENT_SHADER, 'precision mediump float; varying vec3 tint; varying float dotOpacity; varying float diameter; void main(){float distance=length(gl_PointCoord-vec2(0.5))*(diameter+2.0); float alpha=1.0-smoothstep(diameter*0.5-0.5,diameter*0.5+0.5,distance); gl_FragColor=vec4(tint,alpha*dotOpacity);}');
     gl.attachShader(program, vertex); gl.attachShader(program, fragment); gl.linkProgram(program);
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error('Face shader link failed');
     gl.deleteShader(vertex); gl.deleteShader(fragment);
@@ -53,8 +54,10 @@
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer); gl.bufferData(gl.ARRAY_BUFFER, frame.data.byteLength, gl.DYNAMIC_DRAW);
     ['dot', 'color'].forEach(function (name, index) {
       var attribute = gl.getAttribLocation(program, name);
-      gl.enableVertexAttribArray(attribute); gl.vertexAttribPointer(attribute, 3, gl.FLOAT, false, 24, index * 12);
+      gl.enableVertexAttribArray(attribute); gl.vertexAttribPointer(attribute, 3, gl.FLOAT, false, 28, index * 12);
     });
+    var opacity = gl.getAttribLocation(program, 'opacity');
+    gl.enableVertexAttribArray(opacity); gl.vertexAttribPointer(opacity, 1, gl.FLOAT, false, 28, 24);
     gl.viewport(0, 0, 480, 480); gl.clearColor(0, 0, 0, 1);
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     return {
