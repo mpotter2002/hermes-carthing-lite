@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 from html.parser import HTMLParser
 from pathlib import Path
 import unittest
@@ -54,6 +55,12 @@ class FacePreviewTests(unittest.TestCase):
         self.assertNotIn('innerHTML', script)
         self.assertIn("root.HermesCompanion", script)
         self.assertIn("'companion.json'", script)
+
+    def test_display_controls_are_left_aligned_away_from_physical_knob(self):
+        css = (ROOT / 'preview/face/face.css').read_text()
+        match = re.search(r'\.controls\s*\{([^}]+)\}', css)
+        assert match is not None, 'controls style is missing'
+        self.assertRegex(match.group(1), r'justify-content:\s*flex-start\s*;')
 
     def test_supplied_head_is_preserved_byte_for_byte(self):
         path = ROOT / "preview/face/hermes-head.json"
