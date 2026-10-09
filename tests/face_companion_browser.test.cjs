@@ -18,7 +18,7 @@ function element() {
   Object.defineProperty(item, 'firstChild', {get() { return this.children[0] || null; }});
   return item;
 }
-function mount(reducedMotion) {
+function mount(reducedMotion, gpu) {
   let clock = 1000, nextTimer = 1;
   const timers = new Map(), xhrs = [], listeners = {};
   const arcs = [];
@@ -27,7 +27,7 @@ function mount(reducedMotion) {
   ['activity','reply','content-reply','content-image','cards','content','show-content','back'].forEach(id => { nodes[id] = element(); });
   nodes.companion = element(); nodes.controls = element();
   nodes.controls.appendChild(nodes.back); nodes.controls.appendChild(nodes['show-content']);
-  const canvas = element(); canvas.width=canvas.height=480; canvas.getContext=()=>context; canvas.cloneNode=()=>canvas; canvas.parentNode={replaceChild(){}}; nodes.face=canvas;
+  const canvas = element(); canvas.width=480; canvas.height=800; canvas.getContext=()=>context; canvas.cloneNode=()=>canvas; canvas.parentNode={replaceChild(){}}; nodes.face=canvas;
   const document = {
     hidden:false,
     getElementById(id){ return nodes[id] || null; },
@@ -45,9 +45,13 @@ function mount(reducedMotion) {
     requestAnimationFrame(fn){const id=nextTimer++;timers.set(id,{fn,delay:16});return id;},cancelAnimationFrame(id){timers.delete(id);},
     addEventListener(type,fn){listeners[type]=fn;}
   };
+  if (gpu) browser.FaceGPU={createPainter(){return {draw(subject,time){
+    if (subject) subject.draw(context,time,480);
+    else { context.clearRect(); JSON.parse(asset).dots.forEach(dot=>context.arc((dot.x+.5)*10,(dot.y+.5)*10,dot.r*10)); }
+  }};}};
   vm.runInNewContext(source,browser);
   xhrs[0].status=200; xhrs[0].responseText=asset; xhrs[0].onload();
-  return {browser,nodes,document,media,xhrs,timers,arcs,listeners,setClock(v){clock=v;},runDelay(delay){const found=[...timers].find(([,t])=>t.delay===delay);assert.ok(found,'missing timer '+delay);timers.delete(found[0]);found[1].fn(clock);}};
+  return {browser,nodes,canvas,document,media,xhrs,timers,arcs,listeners,setClock(v){clock=v;},runDelay(delay){const found=[...timers].find(([,t])=>t.delay===delay);assert.ok(found,'missing timer '+delay);timers.delete(found[0]);found[1].fn(clock);}};
 }
 function snapshot(overrides) {
   return Object.assign({version:1,profile:'default',session_id:'default-chat',observed_at:Date.now(),activity:'thinking',tool:null,reply:{id:'r',text:'x'.repeat(400)},image:null,cards:[]},overrides||{});
@@ -65,16 +69,25 @@ assert.equal(page.nodes['show-content'].hidden,false);
 assert.equal(page.browser.HermesCompanion.showContent(),true);
 assert.equal(page.nodes.companion.attributes['data-view'],'face','content waits for scatter completion');
 page.setClock(1400); page.runDelay(250);
-assert.ok(page.arcs.some(dot=>dot.a>0 && dot.a<1),'transition midpoint honors alpha');
+assert.equal(page.arcs.length,1003,'transition midpoint retains every dot');
+assert.ok(page.arcs.some(dot=>dot.y>480),'dots disperse continuously toward the portrait window');
 page.setClock(1800); page.runDelay(250);
 assert.equal(page.nodes.companion.attributes['data-view'],'content');
+assert.equal(page.arcs.length,1003,'content endpoint keeps every source dot in the window frame');
+const borderAtEndpoint=page.arcs.map(dot=>({...dot}));
+assert.ok(borderAtEndpoint.every(dot=>dot.x+dot.r<32||dot.x-dot.r>448||dot.y+dot.r<106||dot.y-dot.r>694),'window frame cannot cover the scroll-safe content rectangle');
+assert.equal([...page.timers.values()].filter(t=>t.delay===250).length,1,'reading bob shares the one bounded animation chain');
 assert.equal(page.browser.HermesCompanion.applySnapshot(snapshot({reply:{id:'r2',text:'updated '.repeat(80)}})),true);
 assert.equal(page.nodes.companion.attributes['data-view'],'content','same-session refresh must not interrupt reading');
+assert.deepEqual(page.arcs,borderAtEndpoint,'same-session refresh preserves current window phase');
+assert.equal([...page.timers.values()].filter(t=>t.delay===250).length,1,'repeated snapshots do not add animation chains');
+page.setClock(2050); page.runDelay(250);
+assert.ok(page.arcs.some((dot,i)=>dot.x!==borderAtEndpoint[i].x||dot.y!==borderAtEndpoint[i].y),'window frame bobs while content remains readable');
 assert.equal(page.browser.HermesCompanion.showFace(),true);
 assert.equal(page.nodes.companion.attributes['data-view'],'face');
-page.setClock(2200); page.runDelay(250);
-assert.ok(page.arcs.some(dot=>dot.a>0 && dot.a<1),'return reassembles through a midpoint');
-page.setClock(2600); page.runDelay(250);
+page.setClock(2450); page.runDelay(250);
+assert.equal(page.arcs.length,1003,'return reassembles through a complete-dot midpoint');
+page.setClock(2850); page.runDelay(250);
 assert.equal(page.arcs.length,1003,'return endpoint is the exact complete head');
 
 const continuity=mount(false);
@@ -98,9 +111,31 @@ const still=mount(true);
 still.browser.HermesCompanion.applySnapshot(snapshot({activity:'running'}));
 assert.equal(still.browser.HermesCompanion.showContent(),true);
 assert.equal(still.nodes.companion.attributes['data-view'],'content','reduced motion switches statically');
+assert.equal(still.arcs.length,1003,'reduced motion settles to a complete static window frame');
+assert.ok(still.arcs.some(dot=>dot.y>694),'reduced endpoint is the window, not the face');
 still.browser.HermesCompanion.showFace();
 assert.equal(still.nodes.companion.attributes['data-view'],'face');
+assert.equal(still.arcs.length,1003,'reduced return settles to the exact face');
 still.document.hidden=true; still.listeners.visibilitychange();
 assert.equal(still.xhrs[1].aborted,true,'hidden page cancels the in-flight poll');
 assert.equal([...still.timers.values()].some(t=>t.delay===2000),false,'hidden page has no poll timer');
-console.log('PASS companion API, lower reply, bounded transition lifecycle, reduced switch and hidden poll cancellation');
+
+const hiddenWindow=mount(false);
+hiddenWindow.browser.HermesCompanion.applySnapshot(snapshot());
+hiddenWindow.browser.HermesCompanion.showContent();
+hiddenWindow.document.hidden=true; hiddenWindow.listeners.visibilitychange();
+assert.equal(hiddenWindow.nodes.companion.attributes['data-view'],'content');
+assert.equal(hiddenWindow.arcs.length,1003,'hidden transition settles to a static complete window frame');
+assert.ok(hiddenWindow.arcs.some(dot=>dot.y>694));
+assert.equal([...hiddenWindow.timers.values()].some(t=>t.delay===250),false,'hidden page cancels all render work');
+
+const lostWindow=mount(false,true);
+lostWindow.browser.HermesCompanion.applySnapshot(snapshot());
+lostWindow.browser.HermesCompanion.showContent();
+lostWindow.canvas.onwebglcontextlost();
+assert.equal(lostWindow.canvas.attributes['data-renderer'],'canvas2d');
+assert.equal(lostWindow.nodes.companion.attributes['data-view'],'content');
+assert.equal(lostWindow.arcs.length,1003,'GPU loss settles to the static complete window frame');
+assert.ok(lostWindow.arcs.some(dot=>dot.y>694));
+assert.equal([...lostWindow.timers.values()].some(t=>t.delay===16||t.delay===250),false,'GPU loss leaves no sustained render work');
+console.log('PASS companion API, dot-window lifecycle/snapshot continuity, reduced/static/GPU-loss endpoints and hidden cancellation');

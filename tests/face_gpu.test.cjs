@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 require('../preview/face/desktop-glyph.js');
-const {createDemo} = require('../preview/face/face.js');
+const {createDemo,createTransition} = require('../preview/face/face.js');
 const {createFrame} = require('../preview/face/gpu.js');
 const asset = JSON.parse(fs.readFileSync(path.join(__dirname,'../preview/face/hermes-head.json')));
 for (const state of ['idle','working']) {
@@ -32,6 +32,25 @@ for (const state of ['idle','working']) {
   assert.equal(frame.data.byteLength, 1003*7*4, 'fixed seven-float vertex storage includes authored alpha');
   asset.dots.forEach((d,i)=>{assert.ok(Math.abs(frame.data[i*7]-(d.x+.5)*10)<.0001);assert.ok(Math.abs(frame.data[i*7+2]-d.r*10)<.0001);assert.equal(frame.data[i*7+6],1);});
 }
+const portraitFrame=createFrame(asset,800);
+portraitFrame.still();
+assert.equal(portraitFrame.data.byteLength,1003*7*4);
+asset.dots.forEach((dot,i)=>{
+  assert.ok(Math.abs(portraitFrame.data[i*7]-(4+(dot.x+.5)*472/48))<.0001);
+  assert.ok(Math.abs(portraitFrame.data[i*7+1]-((dot.y+.5)*472/48+112))<.0001,'portrait face keeps accepted placement');
+});
+const transition=createTransition(asset,800); transition.settle(1,1600);
+const transitionGlyph={target(){return {state:'transition'};},draw(ctx,time){
+  ctx.clearRect(); transition.frame(time,true).forEach(dot=>{ctx.fillStyle=dot.c;ctx.globalAlpha=dot.a;ctx.beginPath();ctx.arc(dot.x,dot.y,dot.r);ctx.fill();});
+}};
+const transitionStorage=portraitFrame.data;
+portraitFrame.draw(transitionGlyph,1600);
+assert.equal(portraitFrame.data,transitionStorage,'dot window reuses the fixed portrait GPU vertex buffer');
+assert.equal(portraitFrame.count,1003);
+assert.ok(Array.from({length:portraitFrame.count},(_,i)=>portraitFrame.data[i*7+1]).some(y=>y>694),'transition coordinates are not face-offset twice');
+assert.ok(Array.from({length:portraitFrame.count},(_,i)=>portraitFrame.data[i*7+6]).every(a=>a===1),'all window dots stay visible');
+console.log('PASS portrait GPU frame placement and fixed-buffer 1003-dot window endpoint');
+
 const alphaGlyph = new globalThis.BotGlyph.Glyph(JSON.parse(JSON.stringify(asset)), {botId:'hermes',set:'bold',variantMode:'fixed',variants:{working:'ring'},blinkPeriod:3.8,breathe:2.2});
 alphaGlyph.jump('working',0,'ring');
 const alphaFrame=createFrame(asset); alphaFrame.draw(alphaGlyph,1.2);

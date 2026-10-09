@@ -38,6 +38,9 @@ for (const src of ['reply.png', 'photo-1.JPG', 'card_image.webp', 'still.gif']) 
 console.log('PASS named snapshot contract, bounds, freshness, default identity and local image safety');
 
 const asset = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, '../preview/face/hermes-head.json')));
+assert.equal(face.WINDOW_FRAME_SHAPE, 'HermesDotWindowFrameV1');
+const geometry = face.WINDOW_GEOMETRY;
+assert.deepEqual(Object.keys(geometry).sort(), ['bobAmplitude','bottom','contentBottom','contentLeft','contentRight','contentTop','layers','left','right','top']);
 const transition = face.createTransition(asset, 800);
 assert.equal(transition.value(0), 0);
 transition.setTarget(1, 0);
@@ -45,19 +48,36 @@ assert.equal(transition.value(400), 0.5);
 const midpoint = transition.frame(400);
 const transitionStorage = midpoint;
 assert.equal(midpoint.length, 1003);
-assert.ok(midpoint.some((dot, i) => dot.x !== asset.dots[i].x + 0.5 || dot.y !== asset.dots[i].y + 0.5));
-assert.ok(midpoint.every(dot => dot.a > 0 && dot.a < 1));
+assert.ok(midpoint.some((dot, i) => dot.x !== (asset.dots[i].x + 0.5) * 10 || dot.y !== (asset.dots[i].y + 0.5) * 10));
+assert.ok(midpoint.every(dot => dot.a === 1), 'all original dots remain visible through dispersal');
+const beforeReverse = midpoint.map(dot => ({...dot}));
 transition.setTarget(0, 400);
+assert.deepEqual(transition.frame(400), beforeReverse, 'mid-transition reversal has no positional jump');
 assert.equal(transition.value(600), 0.25, 'interrupted transition reverses continuously');
 assert.equal(transition.frame(600), transitionStorage, 'transition reuses fixed dot storage');
 assert.equal(transition.value(800), 0);
-assert.deepEqual(transition.frame(800), asset.dots.map(dot => ({x: (dot.x + 0.5) * 10, y: (dot.y + 0.5) * 10, r: dot.r * 10, c: dot.c, a: 1})));
+const exactFace = transition.frame(800);
+asset.dots.forEach((dot, i) => {
+  assert.ok(Math.abs(exactFace[i].x - (4 + (dot.x + 0.5) * 472 / 48)) < 1e-12);
+  assert.ok(Math.abs(exactFace[i].y - ((dot.y + 0.5) * 472 / 48 + 112)) < 1e-12);
+  assert.ok(Math.abs(exactFace[i].r - dot.r * 472 / 48) < 1e-12);
+  assert.deepEqual([exactFace[i].c, exactFace[i].p, exactFace[i].a], [dot.c, dot.p, 1]);
+});
 transition.setTarget(1, 800);
 assert.equal(transition.value(1600), 1);
-assert.ok(transition.frame(1600).every(dot => dot.a === 0));
-transition.settle(0, 1600);
-assert.equal(transition.value(1600), 0);
-console.log('PASS deterministic scatter midpoint, exact head endpoint, bounded settle and continuous reversal');
+const border = transition.frame(1600, true).map(dot => ({...dot}));
+assert.equal(border.length, 1003);
+assert.deepEqual(border.map(dot => [dot.c, dot.p]), asset.dots.map(dot => [dot.c, dot.p]), 'border preserves source color, body tags and order');
+assert.ok(border.every(dot => dot.a === 1 && dot.r > 0));
+assert.ok(border.every(dot => dot.x + dot.r < geometry.contentLeft || dot.x - dot.r > geometry.contentRight || dot.y + dot.r < geometry.contentTop || dot.y - dot.r > geometry.contentBottom), 'border leaves the full scroll and control-safe content rectangle clear');
+const duplicate = face.createTransition(asset, 800); duplicate.settle(1, 1600);
+assert.deepEqual(duplicate.frame(1600, true), border, 'per-index border destinations are deterministic');
+const bobbed = transition.frame(1850).map(dot => ({...dot}));
+assert.ok(bobbed.some((dot, i) => dot.x !== border[i].x || dot.y !== border[i].y), 'reading frame gently moves');
+assert.ok(bobbed.every((dot, i) => Math.hypot(dot.x-border[i].x, dot.y-border[i].y) <= geometry.bobAmplitude + 1e-9), 'reading bob stays bounded');
+transition.settle(0, 2000);
+assert.equal(transition.value(2000), 0);
+console.log('PASS exact face and 1003-dot window endpoints, deterministic scroll-safe geometry, bounded bob/storage and continuous reversal');
 
 function node() {
   return {

@@ -1,6 +1,12 @@
 (function (root) {
   'use strict';
   var SNAPSHOT_SHAPE = 'HermesCompanionSnapshotV1';
+  var WINDOW_FRAME_SHAPE = 'HermesDotWindowFrameV1';
+  var FACE_LEFT = 4, FACE_TOP = 112, FACE_SIZE = 472;
+  var WINDOW_GEOMETRY = {
+    left: 16, right: 464, top: 90, bottom: 724, layers: 5, bobAmplitude: 1.25,
+    contentLeft: 32, contentRight: 448, contentTop: 106, contentBottom: 708
+  };
   var SNAPSHOT_KEYS = ['activity', 'cards', 'image', 'observed_at', 'profile', 'reply', 'session_id', 'tool', 'version'];
   function objectWithKeys(value, keys) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
@@ -34,7 +40,24 @@
   }
   function createTransition(asset, duration) {
     var progress = 0, target = 0, changedAt = 0, start = 0;
-    var dots = asset.dots.map(function (dot) { return { x: 0, y: 0, r: 0, c: dot.c, a: 1 }; });
+    var geometry = WINDOW_GEOMETRY, sourceScale = FACE_SIZE / asset.grid;
+    var dots = asset.dots.map(function (dot) { return { x: 0, y: 0, r: 0, c: dot.c, p: dot.p, a: 1 }; });
+    var destinations = asset.dots.map(function (dot, index) {
+      var layer = index % geometry.layers;
+      var sequence = Math.floor(index / geometry.layers);
+      var count = Math.ceil((asset.dots.length - layer) / geometry.layers);
+      var left = geometry.left + layer * 2.5, right = geometry.right - layer * 2.5;
+      var top = geometry.top + layer * 2.5, bottom = geometry.bottom - layer * 2.5;
+      var width = right - left, height = bottom - top, perimeter = 2 * (width + height);
+      var slot = (sequence * 73 + layer * 29) % count;
+      var distance = (slot + 0.5) * perimeter / count;
+      var x, y;
+      if (distance < width) { x = left + distance; y = top; }
+      else if (distance < width + height) { x = right; y = top + distance - width; }
+      else if (distance < 2 * width + height) { x = right - (distance - width - height); y = bottom; }
+      else { x = left; y = bottom - (distance - 2 * width - height); }
+      return { x: x, y: y, r: Math.max(0.65, Math.min(1.35, dot.r * 4.5)), phase: index * 2.399963229728653 };
+    });
     function value(now) {
       var distance = (now - changedAt) / duration;
       progress = target > start ? Math.min(target, start + distance) : Math.max(target, start - distance);
@@ -46,14 +69,16 @@
       target = next ? 1 : 0;
       changedAt = now;
     }
-    function frame(now) {
-      var p = value(now), eased = p * p * (3 - 2 * p), scale = 480 / asset.grid;
+    function frame(now, still) {
+      var p = value(now), eased = p * p * (3 - 2 * p);
       asset.dots.forEach(function (dot, index) {
-        var sourceX = (dot.x + 0.5) * scale, sourceY = (dot.y + 0.5) * scale;
-        var destinationX = ((index * 73 + 37) % 480), destinationY = ((index * 151 + 91) % 480), out = dots[index];
-        out.x = sourceX + (destinationX - sourceX) * eased;
-        out.y = sourceY + (destinationY - sourceY) * eased;
-        out.r = dot.r * scale * (1 - 0.65 * eased); out.a = 1 - p;
+        var sourceX = FACE_LEFT + (dot.x + 0.5) * sourceScale, sourceY = (dot.y + 0.5) * sourceScale + FACE_TOP;
+        var destination = destinations[index], out = dots[index], bob = still ? 0 : geometry.bobAmplitude * eased;
+        var angle = now * 0.0011 + destination.phase;
+        out.x = sourceX + (destination.x - sourceX) * eased + Math.sin(angle) * bob;
+        out.y = sourceY + (destination.y - sourceY) * eased + Math.cos(angle) * bob;
+        out.r = dot.r * sourceScale + (destination.r - dot.r * sourceScale) * eased;
+        out.a = 1;
       });
       return dots;
     }
@@ -63,17 +88,17 @@
     return { value: value, setTarget: setTarget, settle: settle, frame: frame, isRunning: function (now) { return value(now) !== target; } };
   }
   function drawHead(ctx, asset) {
+    var portrait = ctx.canvas.height > 480;
+    var scale = (portrait ? FACE_SIZE : ctx.canvas.width) / asset.grid;
+    var left = portrait ? FACE_LEFT : 0, top = portrait ? FACE_TOP : 0;
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-    ctx.save();
-    ctx.scale(ctx.canvas.width / asset.grid, ctx.canvas.height / asset.grid);
     asset.dots.forEach(function (dot) {
       ctx.fillStyle = dot.c;
       ctx.beginPath();
-      ctx.arc(dot.x + 0.5, dot.y + 0.5, dot.r, 0, Math.PI * 2);
+      ctx.arc(left + (dot.x + 0.5) * scale, (dot.y + 0.5) * scale + top, dot.r * scale, 0, Math.PI * 2);
       ctx.fill();
     });
-    ctx.restore();
   }
   function createDemo(asset, state) {
     if (state !== 'idle' && state !== 'working') throw new Error('Unsupported local demo');
@@ -98,13 +123,15 @@
     return sprites;
   }
   function drawCached(ctx, glyph, now, px, sprites) {
-    var x, y, radius;
-    var offset = glyph.target().state === 'working' ? 2 * px / 480 : 0;
+    var x, y, radius, portrait = ctx.canvas.height > 480;
+    var faceScale = portrait ? FACE_SIZE / 480 : 1;
+    var offset = (portrait ? FACE_TOP : 0) + (glyph.target().state === 'working' ? 2 * px / 480 * faceScale : 0);
+    var left = portrait ? FACE_LEFT : 0;
     var bridge = {
       fillStyle: '', globalAlpha: 1,
-      clearRect: function (a, b, w, h) { ctx.clearRect(a, b, w, h); },
+      clearRect: function () { ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); },
       beginPath: function () {},
-      arc: function (a, b, r) { x = a; y = b + offset; radius = r; },
+      arc: function (a, b, r) { x = left + a * faceScale; y = b * faceScale + offset; radius = r * faceScale; },
       fill: function () {
         var size = radius * 2.4;
         ctx.globalAlpha = bridge.globalAlpha;
@@ -189,7 +216,7 @@
       invalidate: function () { return applySnapshot(null); }
     };
   }
-  var api = { SNAPSHOT_SHAPE: SNAPSHOT_SHAPE, validateSnapshot: validateSnapshot, safeImageSource: safeImageSource, createTransition: createTransition, createCompanionView: createCompanionView, createCompanionController: createCompanionController, drawHead: drawHead, createDemo: createDemo, createSprites: createSprites, drawCached: drawCached };
+  var api = { SNAPSHOT_SHAPE: SNAPSHOT_SHAPE, WINDOW_FRAME_SHAPE: WINDOW_FRAME_SHAPE, WINDOW_GEOMETRY: WINDOW_GEOMETRY, validateSnapshot: validateSnapshot, safeImageSource: safeImageSource, createTransition: createTransition, createCompanionView: createCompanionView, createCompanionController: createCompanionController, drawHead: drawHead, createDemo: createDemo, createSprites: createSprites, drawCached: drawCached };
   if (typeof module !== 'undefined' && module.exports) { module.exports = api; return; }
   var canvas = document.getElementById('face');
   var reduced = root.matchMedia('(prefers-reduced-motion: reduce)');
@@ -198,28 +225,28 @@
   var state = match ? match[1] : null;
   var companionMode = /(?:\?|&)companion=1(?:&|$)/.test(search);
   var forceStatic = /(?:\?|&)motion=off(?:&|$)/.test(search);
-  var asset, glyph, sprites, painter, transition, transitionSubject, controller, view;
-  var timer = null, started = 0, lastFrame = -Infinity, desiredContent = false;
+  var asset, glyph, sprites, painter, transition, transitionSubject, transitionStillSubject, controller, view;
+  var timer = null, started = 0, lastFrame = -Infinity, desiredContent = false, transitioning = false;
   var pollTimer = null, pollRequest = null, stopped = false, currentActivity = null;
-  function transitionGlyph() {
+  function transitionGlyph(still) {
     return {
       target: function () { return { state: 'transition' }; },
       draw: function (ctx, now) {
-        var dots = transition.frame(started + now * 1000);
-        ctx.clearRect(0, 0, 480, 480);
+        var dots = transition.frame(started + now * 1000, still);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
         dots.forEach(function (dot) {
-          if (dot.a <= 0 || dot.r <= 0.05) return;
           ctx.globalAlpha = dot.a; ctx.fillStyle = dot.c; ctx.beginPath(); ctx.arc(dot.x, dot.y, dot.r, 0, Math.PI * 2); ctx.fill();
         });
         ctx.globalAlpha = 1;
       }
     };
   }
-  function animated(nowMs) {
-    return transition && transition.isRunning(nowMs) ? transitionSubject : glyph;
+  function animated() {
+    return transition && (transitioning || desiredContent) ? transitionSubject : glyph;
   }
   function finishTransition(nowMs) {
-    if (!transition || transition.isRunning(nowMs)) return false;
+    if (!transitioning || transition.isRunning(nowMs)) return false;
+    transitioning = false;
     if (desiredContent) view.showContent();
     return true;
   }
@@ -227,17 +254,17 @@
     timer = null;
     if (document.hidden || reduced.matches || forceStatic) return;
     var at = typeof timestamp === 'number' ? timestamp : root.performance.now();
-    var now = (at - started) / 1000, subject = animated(at);
+    var now = (at - started) / 1000, subject = animated(), drew = false;
     if (!subject) return;
     if (painter) {
-      var gpuFinished = finishTransition(at);
-      if (at - lastFrame >= 49) { painter.draw(subject, now); lastFrame = at; }
-      if (!gpuFinished || (!desiredContent && glyph)) timer = root.requestAnimationFrame(tick);
+      if (at - lastFrame >= 49) { painter.draw(subject, now); lastFrame = at; drew = true; }
+      if (drew) finishTransition(at);
+      if (transitioning || desiredContent || glyph) timer = root.requestAnimationFrame(tick);
     } else {
-      if (transition && transition.isRunning(at)) subject.draw(canvas.getContext('2d'), now, canvas.width);
+      if (subject === transitionSubject) subject.draw(canvas.getContext('2d'), now, canvas.width);
       else drawCached(canvas.getContext('2d'), subject, now, canvas.width, sprites);
-      var canvasFinished = finishTransition(at);
-      if (!canvasFinished || (!desiredContent && glyph)) timer = root.setTimeout(tick, 250);
+      finishTransition(at);
+      if (transitioning || desiredContent || glyph) timer = root.setTimeout(tick, 250);
     }
   }
   function cancelRenderTimer() {
@@ -246,9 +273,14 @@
       timer = null;
     }
   }
-  function drawStatic() {
+  function drawSettled(now) {
     if (!asset) return;
-    if (painter) painter.draw(null, 0); else drawHead(canvas.getContext('2d'), asset);
+    if (desiredContent && transition) {
+      var elapsed = (now - started) / 1000;
+      if (painter) painter.draw(transitionStillSubject, elapsed);
+      else transitionStillSubject.draw(canvas.getContext('2d'), elapsed, canvas.width);
+    } else if (painter) painter.draw(null, 0);
+    else drawHead(canvas.getContext('2d'), asset);
   }
   function restart() {
     cancelRenderTimer(); lastFrame = -Infinity;
@@ -256,11 +288,12 @@
     var now = root.performance.now();
     if (document.hidden || reduced.matches || forceStatic) {
       if (transition) transition.settle(desiredContent ? 1 : 0, now);
+      transitioning = false;
       if (desiredContent && view) view.showContent(); else if (view) view.showFace();
-      drawStatic(); return;
+      drawSettled(now); return;
     }
-    drawStatic();
-    if ((transition && transition.isRunning(now)) || glyph) tick(now);
+    if (transitioning || desiredContent || glyph) tick(now);
+    else drawSettled(now);
   }
   function setActivity(activity) {
     if (!asset || currentActivity === activity) return;
@@ -280,29 +313,31 @@
     if (!active.current() || !active.hasFullContent()) return false;
     desiredContent = true;
     if (!transition || reduced.matches || forceStatic || document.hidden) { view.showContent(); restart(); return true; }
-    transition.setTarget(1, root.performance.now()); restart(); return true;
+    transitioning = true; transition.setTarget(1, root.performance.now()); restart(); return true;
   }
   function showFace() {
     desiredContent = false;
     if (!view) return true;
     view.showFace();
-    if (transition && !reduced.matches && !forceStatic && !document.hidden) transition.setTarget(0, root.performance.now());
+    if (transition && !reduced.matches && !forceStatic && !document.hidden) { transitioning = true; transition.setTarget(0, root.performance.now()); }
     restart(); return true;
   }
   root.HermesCompanion = {
     SNAPSHOT_SHAPE: SNAPSHOT_SHAPE,
+    WINDOW_FRAME_SHAPE: WINDOW_FRAME_SHAPE,
+    WINDOW_GEOMETRY: WINDOW_GEOMETRY,
     applySnapshot: function (snapshot) {
       var active = getController(), previous = active.current();
       var keepContent = !!(desiredContent && previous && snapshot && snapshot.session_id === previous.session_id);
       if (!keepContent) {
-        desiredContent = false;
+        desiredContent = false; transitioning = false;
         if (transition) transition.settle(0, root.performance.now());
       }
       var accepted = active.applySnapshot(snapshot);
       if (accepted && keepContent && active.hasFullContent()) {
         desiredContent = true; view.showContent();
       } else if (keepContent) {
-        desiredContent = false;
+        desiredContent = false; transitioning = false;
         if (transition) transition.settle(0, root.performance.now());
         view.showFace(); restart();
       }
@@ -364,7 +399,7 @@
       if (request.status !== 0 && request.status !== 200) throw new Error('load');
       asset = JSON.parse(request.responseText);
       if (asset.kind !== 'head' || asset.bot !== 'hermes' || !Array.isArray(asset.dots)) throw new Error('head');
-      transition = createTransition(asset, 800); transitionSubject = transitionGlyph();
+      transition = createTransition(asset, 800); transitionSubject = transitionGlyph(false); transitionStillSubject = transitionGlyph(true);
       glyph = state ? createDemo(asset, state) : null;
       sprites = (state || companionMode) ? createSprites(asset, function () { return document.createElement('canvas'); }) : null;
       if ((state || companionMode) && root.FaceGPU) {

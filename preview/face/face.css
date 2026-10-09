@@ -1,22 +1,22 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; width: 100%; min-height: 100%; background: #000; color: #e4e7ef; font-family: system-ui, sans-serif; }
 [hidden] { display: none !important; }
-.companion { width: 100%; max-width: 480px; height: 100vh; min-height: 560px; margin: 0 auto; display: flex; flex-direction: column; overflow: hidden; }
-header { flex: 0 0 72px; padding: 24px 28px; display: flex; align-items: center; justify-content: space-between; }
+.companion { position: relative; width: 100%; max-width: 480px; height: 100vh; min-height: 560px; margin: 0 auto; display: flex; flex-direction: column; overflow: hidden; }
+header { position: relative; z-index: 2; flex: 0 0 72px; padding: 24px 28px; display: flex; align-items: center; justify-content: space-between; }
 .brand { font-size: 12px; letter-spacing: .24em; color: #bbc3db; }
 #activity { font-size: 13px; color: #bbc3db; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.face-space { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; }
-canvas { display: block; width: calc(100% - 8px); max-width: 472px; height: auto; }
-.response-area { position: relative; top: -55px; flex: 0 0 118px; min-height: 0; padding: 0 18px; overflow: hidden; }
+.face-space { z-index: 1; flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+canvas { position: absolute; left: 0; top: 0; display: block; width: 480px; max-width: 100%; height: 800px; }
+.response-area { position: relative; z-index: 2; top: -55px; flex: 0 0 118px; min-height: 0; padding: 0 18px; overflow: hidden; }
 h1 { height: 100%; overflow-y: auto; overscroll-behavior: contain; text-align: center; font-weight: 500; font-size: 35.88px; line-height: 1.16; margin: 0; padding: 2px 0 8px; letter-spacing: .02em; white-space: pre-wrap; overflow-wrap: anywhere; touch-action: pan-y; }
-.controls { flex: 0 0 58px; padding: 4px 18px 10px; display: flex; gap: 12px; align-items: center; justify-content: flex-end; }
+.controls { position: relative; z-index: 2; flex: 0 0 58px; padding: 4px 18px 10px; display: flex; gap: 12px; align-items: center; justify-content: flex-end; }
 .controls button, .card-toggle { min-height: 40px; border: 1px solid #27345f; border-radius: 20px; background: #0a1230; color: #e4e7ef; padding: 8px 16px; font: inherit; }
-.content-view { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 8px 28px 18px; white-space: pre-wrap; overflow-wrap: anywhere; touch-action: pan-y; }
+.content-view { position: relative; z-index: 2; flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 34px 32px 34px; white-space: pre-wrap; overflow-wrap: anywhere; touch-action: pan-y; }
 .content-view p { margin: 0 0 20px; font-size: 24px; line-height: 1.35; }
 .content-view img { display: block; max-width: 100%; height: auto; margin: 0 auto 20px; }
 .card { border-top: 1px solid #27345f; padding: 12px 0; }
 .card-toggle { width: 100%; text-align: left; border-radius: 8px; }
 .card-text { margin: 10px 4px 0; font-size: 18px; line-height: 1.4; }
-.companion[data-view="content"] .face-space,
+.companion[data-view="content"] .face-space { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: block; }
 .companion[data-view="content"] .response-area { display: none; }
 .companion[data-view="content"] .content-view { display: block; }
