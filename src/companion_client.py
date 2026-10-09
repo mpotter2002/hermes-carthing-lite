@@ -679,7 +679,7 @@ class ProjectionState:
             accepted = seq
         if latest < accepted:
             raise ProtocolError("replay watermark moved backwards")
-        self.last_seq = latest
+        self.last_seq = accepted
         return reset
 
     def apply_status(self, output: str) -> bool | None:

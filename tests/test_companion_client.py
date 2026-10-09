@@ -281,6 +281,24 @@ class OwnerTests(unittest.TestCase):
 
 
 class ProjectionTests(unittest.TestCase):
+    def test_newer_watermark_does_not_skip_unsnapshotted_completion(self):
+        state = cc.ProjectionState("durable", "runtime")
+        state.apply_replay(replay([event(1, "message.start")], latest=2))
+        self.assertEqual(state.last_seq, 1)
+        state.apply_replay(replay([event(2, "message.complete", {
+            "persisted_turn": {"final_assistant_row_id": 77},
+        })], latest=2))
+        self.assertEqual(state.last_seq, 2)
+        self.assertEqual(state.wanted_row_id, 77)
+        self.assertFalse(state.turn_active)
+
+    def test_empty_snapshot_does_not_advance_to_unseen_watermark(self):
+        state = cc.ProjectionState("durable", "runtime")
+        state.apply_replay(replay([], latest=1))
+        self.assertEqual(state.last_seq, 0)
+        state.apply_replay(replay([event(1, "message.start")], latest=1))
+        self.assertTrue(state.turn_active)
+
     def test_wrong_session_duplicate_gap_and_epoch_change(self):
         state = cc.ProjectionState("durable", "runtime")
         state.apply_replay(replay([event(1, "message.start")]))

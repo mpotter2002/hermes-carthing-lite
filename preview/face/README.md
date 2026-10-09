@@ -44,7 +44,7 @@ The requested NOUS lettering remains unresolved. Official references found previ
 
 ## Artwork, activity, and transitions
 
-`hermes-head.json` is unchanged. Its SHA256 is `6b245f2307e736913866b6377bc3b496db84ad68709d54f4c82b2d01c4ebe8ed1b8a5c357`. All 1003 dots remain, including 137 body-tagged dots.
+`hermes-head.json` is unchanged. Its SHA256 is `6b245f2307e736913866b6377bc3b496db84ad68709d54f4b8473f752e11a838`. All 1003 dots remain, including 137 body-tagged dots.
 
 `desktop-glyph.js` remains the byte-identical desktop source. Its SHA256 is `038da56a3b61a60f062de6579bc6c746324fbf4c82b2d01c4ebe8ed1b8a5c357`. Idle uses the authored idle motion. Both Thinking and Running use the existing authored working/orbit motion because the bust-indexed authored thinking poses are incompatible with this exact head. No extra thinking pose, head turn, or fake parallax is claimed.
 
