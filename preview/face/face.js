@@ -224,6 +224,7 @@
   var match = /(?:\?|&)demo=(idle|working)(?:&|$)/.exec(search);
   var state = match ? match[1] : null;
   var companionMode = /(?:\?|&)companion=1(?:&|$)/.test(search);
+  var pushedTransport = /(?:\?|&)transport=push(?:&|$)/.test(search);
   var forceStatic = /(?:\?|&)motion=off(?:&|$)/.test(search);
   var asset, glyph, sprites, painter, transition, transitionSubject, transitionStillSubject, controller, view;
   var timer = null, started = 0, lastFrame = -Infinity, desiredContent = false, transitioning = false;
@@ -357,6 +358,11 @@
     var done = false;
     pollTimer = null;
     if (stopped || document.hidden || pollRequest) return;
+    if (pushedTransport) {
+      var active = getController();
+      if (!validateSnapshot(active.current(), Date.now()).ok) root.HermesCompanion.applySnapshot(null);
+      schedulePoll(); return;
+    }
     pollRequest = new XMLHttpRequest();
     var thisRequest = pollRequest;
     function complete(ok) {

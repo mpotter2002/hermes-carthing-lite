@@ -18,7 +18,7 @@ function element() {
   Object.defineProperty(item, 'firstChild', {get() { return this.children[0] || null; }});
   return item;
 }
-function mount(reducedMotion, gpu) {
+function mount(reducedMotion, gpu, search) {
   let clock = 1000, nextTimer = 1;
   const timers = new Map(), xhrs = [], listeners = {};
   const arcs = [];
@@ -39,7 +39,7 @@ function mount(reducedMotion, gpu) {
   XHR.prototype.open=function(method,url){this.url=url;}; XHR.prototype.send=function(){}; XHR.prototype.abort=function(){this.aborted=true;};
   const media={matches:reducedMotion,addListener(fn){listeners.media=fn;}};
   const browser={
-    BotGlyph:globalThis.BotGlyph,document,location:{search:'?companion=1'},performance:{now(){return clock;}},XMLHttpRequest:XHR,
+    BotGlyph:globalThis.BotGlyph,document,location:{search:search || '?companion=1'},performance:{now(){return clock;}},XMLHttpRequest:XHR,
     matchMedia(){return media;},
     setTimeout(fn,delay){const id=nextTimer++;timers.set(id,{fn,delay});return id;},clearTimeout(id){timers.delete(id);},
     requestAnimationFrame(fn){const id=nextTimer++;timers.set(id,{fn,delay:16});return id;},cancelAnimationFrame(id){timers.delete(id);},
@@ -56,6 +56,11 @@ function mount(reducedMotion, gpu) {
 function snapshot(overrides) {
   return Object.assign({version:1,profile:'default',session_id:'default-chat',observed_at:Date.now(),activity:'thinking',tool:null,reply:{id:'r',text:'x'.repeat(400)},image:null,cards:[]},overrides||{});
 }
+
+const pushed=mount(false, true, '?companion=1&transport=push');
+assert.equal(pushed.xhrs.length,1,'push transport loads artwork without competing snapshot polling');
+assert.equal(pushed.browser.HermesCompanion.applySnapshot(snapshot({activity:'idle'})),true);
+assert.equal(pushed.nodes.activity.textContent,'Idle');
 
 const page=mount(false);
 assert.equal(page.browser.HermesCompanion.SNAPSHOT_SHAPE,'HermesCompanionSnapshotV1');

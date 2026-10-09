@@ -40,6 +40,36 @@ def replay(events: list[dict], *, latest: int | None = None, epoch: str = "epoch
     }
 
 
+class WebSocketURLTests(unittest.TestCase):
+    def test_live_snapshot_projects_fixed_cards(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            client = object.__new__(cc.CompanionClient)
+            client.writer = cc.SnapshotWriter(Path(tmp) / 'companion.json')
+            snapshot = cc.unknown_snapshot()
+            snapshot['activity'] = 'idle'
+            snapshot['reply'] = {'id': '7', 'text': 'Actual final reply'}
+            client._write_snapshot(snapshot)
+            result = json.loads(client.writer.output.read_text())
+            self.assertEqual(result['cards'], [{'id': 'status', 'title': 'Status', 'text': 'Idle'}, {'id': 'reply-excerpt', 'title': 'Reply excerpt', 'text': 'Actual final reply'}])
+            self.assertIsNone(result['image'])
+
+    def test_gateway_payloadless_start_event(self):
+        state = cc.ProjectionState("durable", "runtime", epoch="epoch-1")
+        state.apply_replay(replay([{"type": "message.start", "session_id": "runtime", "seq": 1}]))
+        self.assertTrue(state.turn_active)
+        self.assertEqual(state.last_seq, 1)
+
+    def test_transport_url_preserves_scheme_separator(self):
+        for origin, expected in (
+            ("https://gateway.example:9443", "wss://gateway.example:9443/api/ws"),
+            ("http://127.0.0.1:9118", "ws://127.0.0.1:9118/api/ws"),
+        ):
+            with self.subTest(origin=origin):
+                client = object.__new__(cc.CompanionClient)
+                client.origin = origin
+                self.assertEqual(client._ws_url(), expected)
+
+
 class AuthTests(unittest.TestCase):
     def test_pkce_and_callback_state_duplicate_and_wrong_path(self):
         verifier, challenge, state = cc.make_pkce()

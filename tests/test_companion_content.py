@@ -41,6 +41,21 @@ def png_bytes(width: int = 1, height: int = 1, *, rgba: bytes | None = None) -> 
 
 
 class CompanionContentTests(unittest.TestCase):
+    def test_compressed_pixels_remain_memory_bounded(self):
+        import tracemalloc
+        import src.companion_content as content
+        def chunk(kind, data):
+            return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data) & 0xffffffff)
+        data = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 1, 1, 8, 6, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(b'\x00' * (8 * 1024 * 1024))) + chunk(b'IEND', b'')
+        tracemalloc.start()
+        try:
+            with self.assertRaises(ValueError):
+                content._strict_png_dimensions(data)
+            peak = tracemalloc.get_traced_memory()[1]
+        finally:
+            tracemalloc.stop()
+        self.assertLess(peak, 1024 * 1024, 'invalid tiny image must not expand its compressed bomb')
+
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name) / "incoming"

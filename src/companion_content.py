@@ -194,7 +194,6 @@ def _strict_png_dimensions(data: bytes) -> tuple[int, int]:
     try:
         decompressor = zlib.decompressobj()
         pixels = decompressor.decompress(bytes(compressed), expected_size + 1)
-        pixels += decompressor.flush()
     except zlib.error as error:
         raise ValueError("invalid image") from error
     if (

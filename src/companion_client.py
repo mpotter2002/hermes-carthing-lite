@@ -609,7 +609,7 @@ class ProjectionState:
         if event.get("session_id") != self.runtime_id:
             raise ProtocolError("cross-session event denied")
         event_type = event.get("type")
-        payload = event.get("payload")
+        payload = event.get("payload", {})
         if not isinstance(event_type, str) or not isinstance(payload, dict):
             raise ProtocolError("invalid event shape")
         if event_type == "message.start":
@@ -783,9 +783,18 @@ class CompanionClient:
             return None, None
         return durable, resolve_owner(read_registry(self.registry), durable, self.source)
 
+    def _write_snapshot(self, snapshot: dict[str, Any]) -> None:
+        from companion_content import project_content
+        projected = dict(snapshot)
+        projected.update(project_content(
+            snapshot['reply'], snapshot['activity'], snapshot['tool'],
+            self.writer.output.parent / 'incoming', self.writer.output.parent,
+        ))
+        self.writer.write(projected)
+
     def _ws_url(self) -> str:
         scheme = "wss" if self.origin.startswith("https://") else "ws"
-        return scheme + self.origin.split(":", 1)[1] + "/api/ws"
+        return scheme + ":" + self.origin.split(":", 1)[1] + "/api/ws"
 
     async def _observe(self, owner: OwnerPin, deadline: float) -> None:
         try:
@@ -821,7 +830,7 @@ class CompanionClient:
                 current_durable, current_owner = self.discover()
                 if current_durable != owner.durable_id or not _owner_unchanged(owner, current_owner):
                     state.disconnect()
-                    self.writer.write(state.snapshot(None))
+                    self._write_snapshot(state.snapshot(None))
                     return
                 replay = await rpc.call(
                     "session.events.since",
@@ -838,20 +847,20 @@ class CompanionClient:
                         state.wanted_row_id = None
                     elif reset:
                         state.reply = self.store.latest_reply(owner.durable_id)
-                self.writer.write(state.snapshot(running))
+                self._write_snapshot(state.snapshot(running))
                 await asyncio.sleep(min(POLL_SECONDS, max(0.0, deadline - time.monotonic())))
 
     async def run(self, duration: float) -> None:
         deadline = time.monotonic() + duration
-        self.writer.write(unknown_snapshot())
+        self._write_snapshot(unknown_snapshot())
         backoff = 0.5
         while time.monotonic() < deadline:
             try:
                 durable, owner = self.discover()
                 if durable is None:
-                    self.writer.write(unknown_snapshot())
+                    self._write_snapshot(unknown_snapshot())
                 elif owner is None:
-                    self.writer.write(unknown_snapshot(durable))
+                    self._write_snapshot(unknown_snapshot(durable))
                 else:
                     await self._observe(owner, deadline)
                     backoff = 0.5
@@ -868,7 +877,7 @@ class CompanionClient:
                     reply = None
                 snapshot = unknown_snapshot(durable or SENTINEL_SESSION_ID)
                 snapshot["reply"] = reply
-                self.writer.write(snapshot)
+                self._write_snapshot(snapshot)
             delay = min(backoff, max(0.0, deadline - time.monotonic()))
             if delay:
                 await asyncio.sleep(delay)

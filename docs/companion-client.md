@@ -16,14 +16,16 @@ Credentials and refresh rotations remain in process memory. The only listener cr
 
 ## Run
 
-Use the Python environment that already contains the optional `websockets` package. All four location arguments are mandatory:
+Use `src/companion_preview.py` for the reversible USB device preview. It enters Hermes's supported installation-bound runtime before reading the transcript. Directly invoking an old source venv can relaunch without its selected dependencies. All four location arguments are mandatory:
 
-    /home/mpotter2002/.hermes/hermes-agent/venv/bin/python \
-      src/companion_client.py \
+    python3 src/companion_preview.py \
       --hermes-source /path/to/hermes-agent \
       --profile-home /path/to/default/.hermes \
       --origin https://existing-hermes-gateway.example \
-      --output /path/to/local-preview-staging/companion.json
+      --output /path/to/local-preview-staging/companion.json \
+      --duration 1200
+
+The preview requires an existing ADB connection and loopback CDP forward at `http://localhost:19222`; `--cdp-origin` accepts only an existing loopback endpoint. It uses the existing Chromium page, never creates a listener, and restores its original URL on exit. The eight face preview files must already be staged in `/var/hermes-face-v1-preview/`. Device system clocks and startup remain unchanged. Host snapshot age is validated before translating that age to the device clock for its freshness watchdog. Images are copied by ADB only after strict validation. Credentials remain in memory.
 
 For an explicitly configured existing local/private gateway, an `http://` origin is accepted. Public HTTP, origin paths, credentials, query strings, fragments, redirects, and insecure TLS options are rejected. HTTPS uses Python's normal certificate validation.
 
@@ -42,7 +44,7 @@ A PID reuse, owner/lease/runtime/lineage change, wrong application, stale runtim
 
 `session.status` is the current busy/idle authority. Only the exact canonical line `Agent Running: Yes|No` is accepted. Unknown formats remain unknown. Thinking is shown only after a gap-free thinking/reasoning event during a turn. A running status without that evidence is generic running. Tool names are mapped through a fixed display allowlist; arguments, results, context, reasoning, prompts, and approval requests are never projected.
 
-A `message.complete` event supplies only a reconciliation row address. The displayed final assistant reply must exist in read-only SQLite, have no pending tool calls, and belong to the canonical compression lineage. Hermes's supported persisted-text redactor is mandatory and failures omit the reply. Reply text is UTF-8 bounded to 32 KiB. Images and cards remain `null` and `[]` in V1.
+A `message.complete` event supplies only a reconciliation row address. The displayed final assistant reply must exist in read-only SQLite, have no pending tool calls, and belong to the canonical compression lineage. Hermes's supported persisted-text redactor is mandatory and failures omit the reply. Reply text is UTF-8 bounded to 32 KiB. Images are projected only from an explicit reference in that redacted final reply to a PNG inside the output directory's dedicated `incoming/` subdirectory. The strict PNG subset, byte/dimension limits and rejected formats are documented in `companion-content.md`. Cards are fixed, read-only Status and Reply excerpt records. This does not implement arbitrary generated cards or UI.
 
 The output shape is:
 
