@@ -395,6 +395,16 @@
   }
   reduced.addListener(restart);
   document.addEventListener('visibilitychange', visibilityChanged);
+  if (companionMode) document.addEventListener('keydown', function (event) {
+    var target = event.target;
+    if (!asset || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].indexOf(target.tagName) >= 0)) return;
+    if (event.keyCode !== 13 && event.keyCode !== 27) return;
+    event.preventDefault();
+    if (event.repeat) return;
+    if (desiredContent) showFace();
+    else if (event.keyCode === 13) showContent();
+  });
   if (root.addEventListener) root.addEventListener('pagehide', function () { stopped = true; stopPolling(); cancelRenderTimer(); });
   function useCanvasFallback() {
     cancelRenderTimer(); painter = null;
