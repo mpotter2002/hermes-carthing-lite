@@ -410,7 +410,7 @@
     var target = event.target;
     if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].indexOf(target.tagName) >= 0)) return;
     var scroll = document.getElementById(desiredContent ? 'content' : 'reply');
-    var delta = event.deltaY || -event.deltaX;
+    var delta = event.deltaY || event.deltaX;
     if (!scroll || scroll.hidden || !isFinite(delta) || !delta || scroll.scrollHeight <= scroll.clientHeight) return;
     var scale = event.deltaMode === 1 ? 32.4 : event.deltaMode === 2 ? scroll.clientHeight : 1;
     event.preventDefault();
