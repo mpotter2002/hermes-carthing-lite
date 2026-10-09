@@ -273,7 +273,7 @@ def _read_source(raw_path: str, asset_root: Path) -> bytes | None:
 
 
 def _existing_output(directory_fd: int, name: str, expected: bytes) -> bool:
-    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
     descriptor = -1
     try:
         descriptor = os.open(name, flags, dir_fd=directory_fd)

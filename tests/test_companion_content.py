@@ -217,6 +217,26 @@ class CompanionContentTests(unittest.TestCase):
         self.assertIsNone(self.project(f"MEDIA:{trailing}")["image"])
         self.assertIsNone(self.project(f"MEDIA:{bad_crc}")["image"])
 
+    def test_nonregular_existing_output_fails_closed_without_blocking(self):
+        import multiprocessing
+        source = self.write_image()
+        name = hashlib.sha256(source.read_bytes()).hexdigest() + '.png'
+        os.mkfifo(self.output / name)
+        context = multiprocessing.get_context('fork')
+        queue = context.Queue()
+        process = context.Process(target=lambda: queue.put(self.project(f'MEDIA:{source}')['image']))
+        process.start()
+        process.join(1)
+        try:
+            self.assertFalse(process.is_alive(), 'a hash-named FIFO must not block projection')
+            self.assertEqual(process.exitcode, 0)
+            self.assertIsNone(queue.get(timeout=1))
+        finally:
+            if process.is_alive():
+                process.terminate()
+                process.join()
+            queue.close()
+
     def test_existing_hash_named_output_is_never_overwritten(self) -> None:
         source = self.write_image()
         name = hashlib.sha256(source.read_bytes()).hexdigest() + ".png"
