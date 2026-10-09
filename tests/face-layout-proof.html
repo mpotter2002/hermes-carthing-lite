@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Local face layout proof</title></head>
+<body style="margin:0">
+<iframe id="preview" src="../preview/face/index.html" style="width:480px;height:800px;border:0;display:block" title="Actual face preview"></iframe>
+<pre id="result">Pending actual preview load</pre>
+<script>
+document.getElementById('preview').onload = function () {
+  setTimeout(function () {
+    var frame = document.getElementById('preview');
+    var doc = frame.contentDocument;
+    var canvas = doc.getElementById('face');
+    var rect = canvas.getBoundingClientRect();
+    var name = doc.querySelector('h1').getBoundingClientRect();
+    var label = doc.querySelector('h1');
+    var range = doc.createRange(); range.selectNodeContents(label);
+    var currentTop = range.getBoundingClientRect().top;
+    var savedTop = label.style.top;
+    label.style.top = '0px';
+    var raisedBy = range.getBoundingClientRect().top - currentTop;
+    label.style.top = savedTop;
+    var copy = doc.body.innerText.trim().split(/\s+/).join(' ');
+    var result = {
+      viewport: [frame.contentWindow.innerWidth, frame.contentWindow.innerHeight],
+      copy: copy,
+      dots: canvas.getAttribute('data-dot-count'),
+      horizontalOverflow: doc.documentElement.scrollWidth > frame.contentWindow.innerWidth,
+      verticalOverflow: doc.documentElement.scrollHeight > frame.contentWindow.innerHeight,
+      canvas: [rect.width, rect.height],
+      canvasContained: rect.left >= 0 && rect.right <= 480 && rect.top >= 0 && rect.bottom <= 800,
+      nameContained: name.top >= 0 && name.bottom <= 800,
+      extraNameRaisePx: raisedBy,
+      buttons: doc.querySelectorAll('button').length
+    };
+    var pass = result.copy === 'HERMES Hermes' && result.dots === '1003' && !result.horizontalOverflow && !result.verticalOverflow && rect.width === rect.height && rect.width > 444 && result.canvasContained && result.nameContained && result.extraNameRaisePx === 50 && doc.defaultView.getComputedStyle(label).fontSize === '31.2px' && result.buttons === 0;
+    document.getElementById('result').textContent = JSON.stringify({pass:pass, measured:result});
+    document.getElementById('result').setAttribute('data-pass', String(pass));
+  }, 500);
+};
+</script>
+</body>
+</html>
