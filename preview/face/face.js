@@ -302,8 +302,13 @@
   function setActivity(activity) {
     if (!asset || currentActivity === activity) return;
     currentActivity = activity;
-    glyph = activity === 'idle' ? createDemo(asset, 'idle') : (activity === 'thinking' || activity === 'running') ? createDemo(asset, 'working') : null;
-    started = root.performance.now(); restart();
+    var next = activity === 'idle' ? 'idle' : (activity === 'thinking' || activity === 'running') ? 'working' : null;
+    if (next && glyph) glyph.set(next, (root.performance.now() - started) / 1000);
+    else {
+      glyph = next ? createDemo(asset, next) : null;
+      started = root.performance.now();
+    }
+    restart();
   }
   function getController() {
     if (!controller) {

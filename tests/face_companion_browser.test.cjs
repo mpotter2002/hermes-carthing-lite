@@ -108,6 +108,28 @@ const beforeRefresh=continuity.arcs.map(dot=>({...dot}));
 continuity.browser.HermesCompanion.applySnapshot(snapshot({activity:'idle'}));
 assert.deepEqual(continuity.arcs,beforeRefresh,'same-activity refresh must preserve authored motion phase');
 
+function maxMovement(a,b) {
+  assert.equal(a.length,b.length,'handoff retains the rendered dots');
+  return Math.max(...a.map((dot,i)=>Math.hypot(dot.x-b[i].x,dot.y-b[i].y)));
+}
+for (const gpu of [false,true]) {
+  const returning=mount(false,gpu,'?companion=1&transport=push');
+  returning.browser.HermesCompanion.applySnapshot(snapshot({activity:'running'}));
+  returning.setClock(2400); returning.runDelay(gpu?16:250);
+  const orbit=returning.arcs.map(dot=>({...dot}));
+  returning.browser.HermesCompanion.applySnapshot(snapshot({activity:'idle'}));
+  assert.ok(maxMovement(orbit,returning.arcs)<3,'working-to-idle starts at the current dot positions, not a fresh idle pose');
+  returning.setClock(2650); returning.runDelay(gpu?16:250);
+  assert.ok(maxMovement(orbit,returning.arcs)>3,'working dots travel back rather than freezing at the orbit');
+}
+
+const sameWorking=mount(false,true,'?companion=1&transport=push');
+sameWorking.browser.HermesCompanion.applySnapshot(snapshot({activity:'thinking'}));
+sameWorking.setClock(2400); sameWorking.runDelay(16);
+const thinkingFrame=sameWorking.arcs.map(dot=>({...dot}));
+sameWorking.browser.HermesCompanion.applySnapshot(snapshot({activity:'running'}));
+assert.deepEqual(sameWorking.arcs,thinkingFrame,'thinking-to-running keeps the existing orbit phase');
+
 const pollPage=mount(true);
 pollPage.xhrs[1].status=200; pollPage.xhrs[1].responseText=JSON.stringify(snapshot({activity:'idle',reply:null})); pollPage.xhrs[1].onload();
 assert.equal(pollPage.nodes.activity.textContent,'Idle');
