@@ -53,7 +53,7 @@ Install the Mac hooks and forwarder:
 
 ```bash
 python3 scripts/install-mac-hooks.py \
-  --base-url http://pi-pihole.local:8892 \
+  --base-url http://hermes-pi.example:8892 \
   --token YOUR_SHARED_TOKEN
 ```
 
@@ -67,7 +67,7 @@ To make a small transfer archive on the Mac:
 
 ```bash
 ./scripts/package-pi.sh
-scp output/agent-monitor-pi.tar.gz YOUR_PI_USER@pi-pihole.local:~
+scp output/agent-monitor-pi.tar.gz YOUR_PI_USER@hermes-pi.example:~
 ```
 
 Then, after signing into the Pi:

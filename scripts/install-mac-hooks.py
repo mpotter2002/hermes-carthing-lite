@@ -170,7 +170,7 @@ def remove_launch_agent() -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base-url", default="http://pi-pihole.local:8892")
+    parser.add_argument("--base-url", default="http://hermes-pi.example:8892")
     parser.add_argument("--token")
     parser.add_argument("--remove", action="store_true")
     args = parser.parse_args()
