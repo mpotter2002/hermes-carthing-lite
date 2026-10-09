@@ -179,7 +179,7 @@
       var hasFull = !!snapshot.image || snapshot.cards.length > 0 || !!(snapshot.reply && snapshot.reply.text.length > 280);
       companion.setAttribute('data-session-id', snapshot.session_id);
       activity.hidden = false; activity.textContent = activityLabel(snapshot);
-      reply.textContent = snapshot.reply ? snapshot.reply.text : 'Hermes';
+      reply.textContent = snapshot.activity === 'thinking' ? 'Thinking...' : snapshot.activity === 'running' ? 'Running...' : snapshot.reply ? snapshot.reply.text : 'Hermes';
       fullReply.textContent = snapshot.reply ? snapshot.reply.text : '';
       image.hidden = !snapshot.image;
       if (snapshot.image) { image.setAttribute('src', snapshot.image.src); image.setAttribute('alt', snapshot.image.alt); }
@@ -232,6 +232,8 @@
   var asset, glyph, sprites, painter, transition, transitionSubject, transitionStillSubject, controller, view;
   var timer = null, started = 0, lastFrame = -Infinity, desiredContent = false, transitioning = false;
   var pollTimer = null, pollRequest = null, stopped = false, currentActivity = null;
+  var activityVariants = { thinking: ['vortex', 'galaxy', 'halo', 'muse'], running: ['ring', 'orbit', 'focus'] };
+  var activityVisits = { thinking: 0, running: 0 };
   function transitionGlyph(still) {
     return {
       target: function () { return { state: 'transition' }; },
@@ -302,12 +304,19 @@
   function setActivity(activity) {
     if (!asset || currentActivity === activity) return;
     currentActivity = activity;
-    var next = activity === 'idle' ? 'idle' : (activity === 'thinking' || activity === 'running') ? 'working' : null;
-    if (next && glyph) glyph.set(next, (root.performance.now() - started) / 1000);
+    var next = activity === 'idle' ? 'idle' : activity === 'thinking' ? 'thinking' : activity === 'running' ? 'working' : null;
+    var choices = activityVariants[activity];
+    var variant = choices ? choices[activityVisits[activity]++ % choices.length] : 'idle';
+    if (next && glyph) glyph.set(next, (root.performance.now() - started) / 1000, {
+      variant: variant,
+      transition: next === 'thinking' || glyph.target().state === 'thinking' ? 'blend' : undefined
+    });
     else {
-      glyph = next ? createDemo(asset, next) : null;
+      glyph = next ? createDemo(asset, 'idle') : null;
+      if (glyph) glyph.jump(next, 0, variant);
       started = root.performance.now();
     }
+    canvas.setAttribute('data-animation', next ? next + '/' + variant : 'static');
     restart();
   }
   function getController() {

@@ -21,7 +21,8 @@ function element() {
 function mount(reducedMotion, gpu, search) {
   let clock = 1000, nextTimer = 1;
   const timers = new Map(), xhrs = [], listeners = {};
-  const arcs = [];
+  const arcs = [], glyphs = [];
+  const glyphAPI = Object.assign({}, globalThis.BotGlyph, {Glyph: function(a,o) { const g=new globalThis.BotGlyph.Glyph(a,o); glyphs.push(g); return g; }});
   const context = {canvas:{width:480,height:480},globalAlpha:1,fillStyle:'',clearRect(){arcs.length=0;},fillRect(){arcs.length=0;},save(){},restore(){},scale(){},beginPath(){},arc(x,y,r){arcs.push({x,y,r,a:this.globalAlpha});},fill(){},drawImage(sprite,x,y,w,h){arcs.push({x:x+w/2,y:y+h/2,r:w/2,a:this.globalAlpha});}};
   const nodes = {};
   ['activity','reply','content-reply','content-image','cards','content','show-content','back'].forEach(id => { nodes[id] = element(); });
@@ -39,7 +40,7 @@ function mount(reducedMotion, gpu, search) {
   XHR.prototype.open=function(method,url){this.url=url;}; XHR.prototype.send=function(){}; XHR.prototype.abort=function(){this.aborted=true;};
   const media={matches:reducedMotion,addListener(fn){listeners.media=fn;}};
   const browser={
-    BotGlyph:globalThis.BotGlyph,document,location:{search:search || '?companion=1'},performance:{now(){return clock;}},XMLHttpRequest:XHR,
+    BotGlyph:glyphAPI,document,location:{search:search || '?companion=1'},performance:{now(){return clock;}},XMLHttpRequest:XHR,
     matchMedia(){return media;},
     setTimeout(fn,delay){const id=nextTimer++;timers.set(id,{fn,delay});return id;},clearTimeout(id){timers.delete(id);},
     requestAnimationFrame(fn){const id=nextTimer++;timers.set(id,{fn,delay:16});return id;},cancelAnimationFrame(id){timers.delete(id);},
@@ -51,7 +52,7 @@ function mount(reducedMotion, gpu, search) {
   }};}};
   vm.runInNewContext(source,browser);
   xhrs[0].status=200; xhrs[0].responseText=asset; xhrs[0].onload();
-  return {browser,nodes,canvas,document,media,xhrs,timers,arcs,listeners,setClock(v){clock=v;},runDelay(delay){const found=[...timers].find(([,t])=>t.delay===delay);assert.ok(found,'missing timer '+delay);timers.delete(found[0]);found[1].fn(clock);}};
+  return {browser,glyphs,nodes,canvas,document,media,xhrs,timers,arcs,listeners,setClock(v){clock=v;},runDelay(delay){const found=[...timers].find(([,t])=>t.delay===delay);assert.ok(found,'missing timer '+delay);timers.delete(found[0]);found[1].fn(clock);}};
 }
 function snapshot(overrides) {
   const result = Object.assign({version:1,profile:'default',session_id:'default-chat',observed_at:Date.now(),activity:'thinking',tool:null,reply:{id:'r',text:'x'.repeat(400)},image:null,cards:[]},overrides||{});
@@ -75,7 +76,8 @@ assert.equal(page.xhrs.length,2,'head load plus one immediate snapshot read');
 assert.equal(page.xhrs[1].url,'companion.json');
 assert.equal(page.browser.HermesCompanion.applySnapshot(snapshot()),true);
 assert.equal(page.nodes.activity.textContent,'Thinking');
-assert.equal(page.nodes.reply.textContent,'x'.repeat(400));
+assert.equal(page.nodes.reply.textContent,'Thinking...');
+assert.equal(page.nodes['content-reply'].textContent,'x'.repeat(400));
 assert.equal(page.nodes['show-content'].hidden,false);
 assert.equal(page.browser.HermesCompanion.showContent(),true);
 assert.equal(page.nodes.companion.attributes['data-view'],'face','content waits for scatter completion');
@@ -128,7 +130,21 @@ sameWorking.browser.HermesCompanion.applySnapshot(snapshot({activity:'thinking'}
 sameWorking.setClock(2400); sameWorking.runDelay(16);
 const thinkingFrame=sameWorking.arcs.map(dot=>({...dot}));
 sameWorking.browser.HermesCompanion.applySnapshot(snapshot({activity:'running'}));
-assert.deepEqual(sameWorking.arcs,thinkingFrame,'thinking-to-running keeps the existing orbit phase');
+assert.ok(maxMovement(sameWorking.arcs,thinkingFrame)<3,'thinking-to-tool handoff starts at the current pose');
+
+const varied=mount(false,true,'?companion=1&transport=push');
+for (const [activity,state,variants] of [['thinking','thinking',['vortex','galaxy','halo','muse']],['running','working',['ring','orbit','focus']]]) {
+  for (const variant of variants) {
+    varied.browser.HermesCompanion.applySnapshot(snapshot({activity:'idle'}));
+    varied.browser.HermesCompanion.applySnapshot(snapshot({activity}));
+    const glyph=varied.glyphs.at(-1), target=glyph.target();
+    assert.equal(target.state,state,'actual activity chooses its authored state');
+    assert.equal(target.variant,variant,'successive activity episodes cycle authored variants');
+    varied.browser.HermesCompanion.applySnapshot(snapshot({activity}));
+    assert.equal(glyph.target(),target,'same-state refresh does not restart or reroll animation');
+  }
+}
+assert.equal(varied.glyphs.length,1,'known state changes reuse one glyph and animation epoch');
 
 const knob=mount(false,true,'?companion=1&transport=push');
 knob.browser.HermesCompanion.applySnapshot(snapshot({activity:'idle'}));
