@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:,">
+<title>Hermes face · reversible device preview</title>
+<link rel="stylesheet" href="face.css">
+<style>
+html, body { width: 800px; height: 480px; min-height: 0; overflow: hidden; }
+.companion { position: absolute; left: 0; top: 0; width: 480px; max-width: none; height: 800px; min-height: 0; transform-origin: 0 0; transform: translateY(480px) rotate(-90deg); }
+</style>
+</head>
+<body>
+<main class="companion">
+  <header><span class="brand">HERMES</span></header>
+  <section class="face-space" aria-label="Supplied Hermes head artwork">
+    <canvas id="face" width="480" height="480" role="img" aria-label="Blue dot-art Hermes head, with decorative blinking"></canvas>
+  </section>
+  <h1>Hermes</h1>
+</main>
+<script src="desktop-glyph.js"></script>
+<script src="gpu.js"></script>
+<script src="face.js"></script>
+</body>
+</html>

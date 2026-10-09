@@ -1,0 +1,8 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 100%; min-height: 100%; background: #000; color: #e4e7ef; font-family: system-ui, sans-serif; }
+.companion { width: 100%; max-width: 480px; height: 100vh; min-height: 560px; margin: 0 auto; display: flex; flex-direction: column; }
+header { flex: 0 0 72px; padding: 24px 28px; display: flex; align-items: center; }
+.brand { font-size: 12px; letter-spacing: .24em; color: #bbc3db; }
+.face-space { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+canvas { display: block; width: calc(100% - 8px); max-width: 472px; height: auto; }
+h1 { position: relative; top: -50px; flex: 0 0 82px; text-align: center; font-weight: 500; font-size: 31.2px; margin: 0; padding: 2px 18px 46px; letter-spacing: .02em; }
