@@ -130,6 +130,29 @@ const thinkingFrame=sameWorking.arcs.map(dot=>({...dot}));
 sameWorking.browser.HermesCompanion.applySnapshot(snapshot({activity:'running'}));
 assert.deepEqual(sameWorking.arcs,thinkingFrame,'thinking-to-running keeps the existing orbit phase');
 
+const knob=mount(false,true,'?companion=1&transport=push');
+knob.browser.HermesCompanion.applySnapshot(snapshot({activity:'idle'}));
+assert.equal(typeof knob.listeners.keydown,'function','companion must handle physical knob Enter');
+let prevented=0;
+function press(code,overrides) {
+  knob.listeners.keydown(Object.assign({keyCode:code,repeat:false,target:knob.nodes.face,preventDefault(){prevented++;}},overrides||{}));
+}
+press(13);
+knob.setClock(1800); knob.runDelay(16);
+assert.equal(knob.nodes.companion.attributes['data-view'],'content','knob press opens content');
+press(13,{repeat:true});
+assert.equal(knob.nodes.companion.attributes['data-view'],'content','held knob cannot repeat-toggle');
+press(13,{target:{tagName:'INPUT'}});
+assert.equal(knob.nodes.companion.attributes['data-view'],'content','Enter in editable content is not a display control');
+press(13);
+knob.setClock(2600); knob.runDelay(16);
+assert.equal(knob.nodes.companion.attributes['data-view'],'face','second knob press returns to face');
+press(13);
+knob.setClock(3400); knob.runDelay(16);
+press(27);
+assert.equal(knob.nodes.companion.attributes['data-view'],'face','Escape returns from content');
+assert.equal(prevented,5,'handled presses prevent native button activation from toggling twice');
+
 const pollPage=mount(true);
 pollPage.xhrs[1].status=200; pollPage.xhrs[1].responseText=JSON.stringify(snapshot({activity:'idle',reply:null})); pollPage.xhrs[1].onload();
 assert.equal(pollPage.nodes.activity.textContent,'Idle');
