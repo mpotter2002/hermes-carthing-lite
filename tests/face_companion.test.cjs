@@ -32,8 +32,12 @@ for (const bad of [
   snapshot({image: {src: 'image.svg', alt: 'bad'}}),
   snapshot({extra: true})
 ]) assert.equal(face.validateSnapshot(bad, NOW).ok, false);
-for (const src of ['reply.png', 'photo-1.JPG', 'card_image.webp', 'still.gif']) {
-  assert.equal(face.validateSnapshot(snapshot({image: {src, alt: 'local'}}), NOW).ok, true, src);
+for (const src of ['reply.png', 'photo-1.JPG', 'card_image.webp', 'still.gif', 'a'.repeat(64) + '.jpg']) {
+  assert.equal(face.validateSnapshot(snapshot({image: {src, alt: 'local'}}), NOW).ok, false, src);
+}
+assert.equal(face.validateSnapshot(snapshot({image:{src:'a'.repeat(64)+'.png',alt:'safe'}}), NOW).ok, true);
+for (const cards of [[{id:'arbitrary',title:'Action',text:'x'}], [{id:'status',title:'Not Status',text:'Idle'}], [{id:'reply-excerpt',title:'Reply excerpt',text:'reply'}], [{id:'status',title:'Status',text:'Thinking'}]]) {
+  assert.equal(face.validateSnapshot(snapshot({cards}),NOW).ok,false);
 }
 console.log('PASS named snapshot contract, bounds, freshness, default identity and local image safety');
 
@@ -94,17 +98,21 @@ const nodes = {};
 const doc = {
   getElementById(id) { return nodes[id]; },
   querySelector(selector) { return selector === '.companion' ? nodes.companion : null; },
-  createElement() { return node(); }
+  createElement(tag) { const element = node(); element.tagName = tag; return element; }
 };
 const view = face.createCompanionView(doc);
 const activities = [];
 const controller = face.createCompanionController(view, () => NOW, activity => activities.push(activity));
-const hostile = snapshot({reply:{id:'r1',text:'<img src=x onerror=alert(1)>'},cards:[{id:'c1',title:'<b>title</b>',text:'<script>bad()</script>'}]});
+const hostile = snapshot({reply:{id:'r1',text:'<img src=x onerror=alert(1)>'},cards:[{id:'status',title:'Status',text:'Idle'},{id:'reply-excerpt',title:'Reply excerpt',text:'<script>bad()</script>'}]});
 assert.equal(controller.applySnapshot(hostile), true);
 assert.equal(nodes.reply.textContent, hostile.reply.text);
 assert.equal(nodes['content-reply'].textContent, hostile.reply.text);
 assert.equal(nodes.cards.children[0].children[0].textContent, hostile.cards[0].title);
 assert.equal(nodes.cards.children[0].children[1].textContent, hostile.cards[0].text);
+assert.equal(nodes.cards.children[1].children[1].textContent, hostile.cards[1].text);
+assert.equal(nodes.cards.children[0].children[0].tagName, 'h2');
+assert.equal(nodes.cards.children[0].children[1].hidden, false);
+assert.equal(nodes.cards.children[0].children[0].onclick, undefined);
 assert.equal(nodes.companion.attributes['data-session-id'], 'session-1');
 assert.equal(activities.at(-1), 'idle');
 assert.equal(controller.applySnapshot(snapshot({session_id:'session-2',reply:null,activity:'running',tool:'shell'})), true);

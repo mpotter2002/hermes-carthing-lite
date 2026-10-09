@@ -383,7 +383,9 @@ class AuthSession:
                 operation="native token refresh",
                 body={"refresh_token": old_refresh, "provider": old_provider},
             )
+            previous = self.tokens
             self.tokens = Tokens.from_payload(payload)
+            previous.clear()
         except (HttpFailure, AuthRequired):
             self.tokens.clear()
             raise AuthRequired("authentication expired; run an explicit new login") from None

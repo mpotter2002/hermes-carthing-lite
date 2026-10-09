@@ -76,6 +76,50 @@ class CompanionContentTests(unittest.TestCase):
         path.write_bytes(png_bytes() if data is None else data)
         return path
 
+    def test_rejects_replaced_source_parent_before_open(self):
+        from unittest.mock import patch
+        import src.companion_content as content
+        source = self.write_image('nested/safe.png')
+        outside = Path(self.temp.name) / 'outside'
+        outside.mkdir()
+        (outside / 'safe.png').write_bytes(png_bytes(2, 1))
+        original = os.open
+        replaced = False
+        def racing_open(path, flags, *args, **kwargs):
+            nonlocal replaced
+            if not replaced and (str(path) == str(source) or str(path) == 'nested'):
+                replaced = True
+                source.parent.rename(self.root / 'retired')
+                source.parent.symlink_to(outside, target_is_directory=True)
+            return original(path, flags, *args, **kwargs)
+        with patch.object(content.os, 'open', side_effect=racing_open):
+            result = self.project(f'MEDIA:{source}')
+        self.assertTrue(replaced)
+        self.assertIsNone(result['image'])
+
+    def test_rejects_replaced_output_parent_before_open(self):
+        from unittest.mock import patch
+        import src.companion_content as content
+        source = self.write_image()
+        self.output = self.output / 'nested' / 'delivered'
+        self.output.mkdir(parents=True)
+        outside = Path(self.temp.name) / 'outside'
+        (outside / 'delivered').mkdir(parents=True)
+        original = os.open
+        replaced = False
+        def racing_open(path, flags, *args, **kwargs):
+            nonlocal replaced
+            if not replaced and (str(path) == str(self.output) or str(path) == 'nested'):
+                replaced = True
+                self.output.parent.rename(self.output.parent.with_name('retired-output'))
+                self.output.parent.symlink_to(outside, target_is_directory=True)
+            return original(path, flags, *args, **kwargs)
+        with patch.object(content.os, 'open', side_effect=racing_open):
+            result = self.project(f'MEDIA:{source}')
+        self.assertTrue(replaced)
+        self.assertIsNone(result['image'])
+        self.assertEqual(list((outside / 'delivered').iterdir()), [])
+
     def test_projects_valid_media_png_with_safe_deterministic_name(self) -> None:
         source = self.write_image()
         result = self.project(f"Rendered result\nMEDIA:{source}")

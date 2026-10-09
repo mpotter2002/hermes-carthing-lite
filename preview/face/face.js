@@ -19,7 +19,7 @@
     return typeof value === 'string' && value.length <= maximum && (allowEmpty || value.length > 0);
   }
   function safeImageSource(src) {
-    return boundedString(src, 128, false) && /^[A-Za-z0-9][A-Za-z0-9._-]*\.(?:png|jpe?g|webp|gif)$/i.test(src);
+    return boundedString(src, 68, false) && /^[0-9a-f]{64}\.png$/.test(src);
   }
   function validateSnapshot(snapshot, now) {
     var i, card;
@@ -31,10 +31,12 @@
     if (snapshot.tool !== null && !boundedString(snapshot.tool, 256, false)) return { ok: false, reason: 'tool' };
     if (snapshot.reply !== null && (!objectWithKeys(snapshot.reply, ['id', 'text']) || !boundedString(snapshot.reply.id, 256, false) || !boundedString(snapshot.reply.text, 32768, true))) return { ok: false, reason: 'reply' };
     if (snapshot.image !== null && (!objectWithKeys(snapshot.image, ['alt', 'src']) || !safeImageSource(snapshot.image.src) || !boundedString(snapshot.image.alt, 512, true))) return { ok: false, reason: 'image' };
-    if (!Array.isArray(snapshot.cards) || snapshot.cards.length > 4) return { ok: false, reason: 'cards' };
+    if (!Array.isArray(snapshot.cards) || snapshot.cards.length > 2) return { ok: false, reason: 'cards' };
     for (i = 0; i < snapshot.cards.length; i += 1) {
       card = snapshot.cards[i];
-      if (!objectWithKeys(card, ['id', 'text', 'title']) || !boundedString(card.id, 256, false) || !boundedString(card.title, 256, true) || !boundedString(card.text, 8192, true)) return { ok: false, reason: 'card' };
+      if (!objectWithKeys(card, ['id', 'text', 'title']) || !boundedString(card.text, 8192, true)) return { ok: false, reason: 'card' };
+      if (i === 0 && (card.id !== 'status' || card.title !== 'Status' || card.text !== activityLabel(snapshot))) return { ok: false, reason: 'card' };
+      if (i === 1 && (card.id !== 'reply-excerpt' || card.title !== 'Reply excerpt' || snapshot.reply === null)) return { ok: false, reason: 'card' };
     }
     return { ok: true, value: snapshot };
   }
@@ -182,12 +184,11 @@
       else { image.removeAttribute('src'); image.setAttribute('alt', ''); }
       empty(cards);
       snapshot.cards.forEach(function (card) {
-        var section = doc.createElement('section'), button = doc.createElement('button'), text = doc.createElement('p');
-        section.className = 'card'; button.className = 'card-toggle'; text.className = 'card-text';
-        button.type = 'button'; button.textContent = card.title || 'Card'; button.setAttribute('aria-expanded', 'false');
-        text.textContent = card.text; text.hidden = true;
-        button.addEventListener('click', function () { text.hidden = !text.hidden; button.setAttribute('aria-expanded', String(!text.hidden)); });
-        section.appendChild(button); section.appendChild(text); cards.appendChild(section);
+        var section = doc.createElement('section'), title = doc.createElement('h2'), text = doc.createElement('p');
+        section.className = 'card'; title.className = 'card-title'; text.className = 'card-text';
+        title.textContent = card.title;
+        text.textContent = card.text; text.hidden = false;
+        section.appendChild(title); section.appendChild(text); cards.appendChild(section);
       });
       if (controls) controls.hidden = false;
       show.hidden = !hasFull; show.textContent = 'Full content'; back.textContent = 'Back';

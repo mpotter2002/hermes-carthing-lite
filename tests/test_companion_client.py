@@ -134,6 +134,15 @@ class AuthTests(unittest.TestCase):
                 cc.NativeLogin("http://127.0.0.1:9118", timeout=0.1).login(lambda _url: None)
         exchange.assert_not_called()
 
+    def test_refresh_clears_replaced_token_object(self):
+        original = cc.Tokens('old-access', 'old-refresh', 0, 'basic', 'user')
+        auth = cc.AuthSession('https://example.test', original)
+        payload = {'access_token': 'new-access', 'refresh_token': 'new-refresh', 'expires_at': 1, 'provider': 'basic', 'user_id': 'user', 'token_type': 'Bearer'}
+        with mock.patch.object(cc, '_http_json', return_value=payload):
+            auth._refresh()
+        self.assertEqual((original.access_token, original.refresh_token), ('', ''))
+        self.assertEqual((auth.tokens.access_token, auth.tokens.refresh_token), ('new-access', 'new-refresh'))
+
     def test_token_payload_exact_fields_and_clear(self):
         payload = {
             "access_token": "a", "refresh_token": "r", "token_type": "Bearer",

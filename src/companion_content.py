@@ -73,16 +73,25 @@ def _validated_inputs(
     return reply_text, clean_tool
 
 
-def _has_symlink_component(path: Path) -> bool:
-    current = Path(path.anchor)
-    for part in path.parts[1:]:
-        current /= part
-        try:
-            if stat.S_ISLNK(current.lstat().st_mode):
-                return True
-        except OSError:
-            return True
-    return False
+def _open_directory(path: Path, *, create_leaf: bool = False) -> int:
+    if not path.is_absolute() or '..' in path.parts:
+        raise ValueError("invalid directory")
+    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_DIRECTORY | os.O_NOFOLLOW
+    descriptor = os.open(path.anchor, flags)
+    try:
+        for index, part in enumerate(path.parts[1:], 1):
+            if create_leaf and index == len(path.parts) - 1:
+                try:
+                    os.mkdir(part, mode=0o700, dir_fd=descriptor)
+                except FileExistsError:
+                    pass
+            child = os.open(part, flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
 
 
 def _reply_without_source_paths(reply_text: str) -> str:
@@ -222,13 +231,15 @@ def _read_source(raw_path: str, asset_root: Path) -> bytes | None:
         return None
     if not relative.parts or any(part in {"", ".", ".."} or part.startswith(".") for part in relative.parts):
         return None
-    if _has_symlink_component(root) or _has_symlink_component(source):
-        return None
-
-    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
-    descriptor = -1
+    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
+    descriptor = directory_fd = -1
     try:
-        descriptor = os.open(source, flags)
+        directory_fd = _open_directory(root)
+        for part in relative.parts[:-1]:
+            child = os.open(part, os.O_RDONLY | os.O_CLOEXEC | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory_fd)
+            os.close(directory_fd)
+            directory_fd = child
+        descriptor = os.open(relative.name, flags, dir_fd=directory_fd)
         before = os.fstat(descriptor)
         if not stat.S_ISREG(before.st_mode) or before.st_size < 1 or before.st_size > _MAX_FILE_BYTES:
             return None
@@ -245,6 +256,7 @@ def _read_source(raw_path: str, asset_root: Path) -> bytes | None:
             or before.st_ino != after.st_ino
             or before.st_size != after.st_size
             or before.st_mtime_ns != after.st_mtime_ns
+            or before.st_ctime_ns != after.st_ctime_ns
             or len(data) != after.st_size
         ):
             return None
@@ -256,6 +268,8 @@ def _read_source(raw_path: str, asset_root: Path) -> bytes | None:
     finally:
         if descriptor >= 0:
             os.close(descriptor)
+        if directory_fd >= 0:
+            os.close(directory_fd)
 
 
 def _existing_output(directory_fd: int, name: str, expected: bytes) -> bool:
@@ -288,21 +302,8 @@ def _immutable_copy(data: bytes, output_dir: Path) -> str | None:
     if not output.is_absolute():
         return None
     try:
-        if not output.exists():
-            parent = output.parent
-            if _has_symlink_component(parent):
-                return None
-            output.mkdir(mode=0o700)
-        if _has_symlink_component(output) or not output.is_dir():
-            return None
-        directory_fd = os.open(
-            output,
-            os.O_RDONLY
-            | getattr(os, "O_CLOEXEC", 0)
-            | getattr(os, "O_DIRECTORY", 0)
-            | getattr(os, "O_NOFOLLOW", 0),
-        )
-    except OSError:
+        directory_fd = _open_directory(output, create_leaf=True)
+    except (OSError, ValueError):
         return None
 
     digest = hashlib.sha256(data).hexdigest()

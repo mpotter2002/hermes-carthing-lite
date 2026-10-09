@@ -42,18 +42,21 @@ class DeviceBridge:
         self.copied = set()
         self.seq = 0
         self.socket = None
+        self.target_id = None
         page = self.page()
+        self.target_id = page['id']
         self.previous = page['url']
         self.socket = connect(page['webSocketDebuggerUrl'], open_timeout=5, max_size=2**20, ping_interval=None)
 
     def page(self):
         pages = json.load(urllib.request.urlopen(self.origin + '/json/list', timeout=5))
-        pages = [p for p in pages if p.get('type') == 'page' and p.get('url', '').startswith('file:///var/hermes-face-')]
+        allowed_urls = {PREVIEW_URL, 'file:///var/hermes-face-preview/device.html?demo=idle'}
+        pages = [p for p in pages if p.get('type') == 'page' and p.get('url') in allowed_urls and (self.target_id is None or p.get('id') == self.target_id)]
         if len(pages) != 1:
             raise RuntimeError('expected one existing face preview page')
         address = urllib.parse.urlsplit(pages[0]['webSocketDebuggerUrl'])
         origin = urllib.parse.urlsplit(self.origin)
-        if address.scheme != 'ws' or address.hostname not in ('localhost', '127.0.0.1') or address.port != origin.port or not address.path.startswith('/devtools/page/'):
+        if address.scheme != 'ws' or address.hostname not in ('localhost', '127.0.0.1') or address.port != origin.port or not pages[0].get('id') or address.path != '/devtools/page/' + pages[0]['id']:
             raise RuntimeError('unexpected device debugger endpoint')
         return pages[0]
 
@@ -83,6 +86,8 @@ class DeviceBridge:
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
             if self.evaluate('!!(window.HermesCompanion && document.documentElement && document.querySelector("canvas[data-loaded=true]"))'):
+                if self.evaluate('location.href') != PREVIEW_URL:
+                    raise RuntimeError('unexpected device preview URL')
                 return
             time.sleep(.2)
         raise RuntimeError('device preview did not initialize')
@@ -94,11 +99,26 @@ class DeviceBridge:
             if not re.fullmatch(r'[0-9a-f]{64}\.png', name):
                 raise ValueError('invalid projected image name')
             source = self.output.parent / name
-            from companion_content import _strict_png_dimensions
-            if source.is_symlink() or source.stat().st_size > 4 * 1024 * 1024:
+            from companion_content import _read_source
+            import hashlib
+            data = _read_source(str(source), self.output.parent)
+            if data is None or hashlib.sha256(data).hexdigest() + '.png' != name:
                 raise ValueError('invalid projected image file')
-            _strict_png_dimensions(source.read_bytes())
-            subprocess.run(['adb', 'push', str(source), DEVICE_DIRECTORY + name], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
+            import os
+            import fcntl
+            descriptor = os.memfd_create('companion-validated-png', os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING)
+            try:
+                view = memoryview(data)
+                while view:
+                    written = os.write(descriptor, view)
+                    if written < 1:
+                        raise RuntimeError('image staging failed')
+                    view = view[written:]
+                # Linux UAPI values also work with Python builds that omit the seal constants.
+                fcntl.fcntl(descriptor, getattr(fcntl, 'F_ADD_SEALS', 1033), 0x000f)
+                subprocess.run(['adb', 'push', '/proc/self/fd/' + str(descriptor), DEVICE_DIRECTORY + name], pass_fds=(descriptor,), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
+            finally:
+                os.close(descriptor)
             self.copied.add(name)
         converted = device_snapshot(snapshot, int(time.time() * 1000), int(self.evaluate('Date.now()')))
         encoded = json.dumps(converted, ensure_ascii=True, separators=(',', ':'))
@@ -139,6 +159,7 @@ def main(argv=None):
         code = managed_code(Path(__file__).resolve(), list(sys.argv[1:]))
         return subprocess.call(runtime_command(source, code=code))
     tokens = None
+    auth = None
     bridge = None
     try:
         client_store = cc.HermesStore(source, profile)
@@ -146,7 +167,8 @@ def main(argv=None):
             raise RuntimeError('default Bot Chat unavailable')
         cc.CALLBACK_TIMEOUT = 300
         tokens = cc.NativeLogin(args.origin, args.provider, timeout=300).login(lambda url: print('AUTHORIZE\n' + url, flush=True))
-        client = cc.CompanionClient(source, profile, args.origin, output, cc.AuthSession(args.origin, tokens))
+        auth = cc.AuthSession(args.origin, tokens)
+        client = cc.CompanionClient(source, profile, args.origin, output, auth)
         durable, owner = client.discover()
         if not durable or not owner:
             raise RuntimeError('live canonical owner unavailable')
@@ -161,6 +183,8 @@ def main(argv=None):
         print('Device delivery ' + json.dumps({'snapshots': bridge.applied, 'activities': sorted(bridge.activities)}), flush=True)
         return 0
     finally:
+        if auth:
+            auth.tokens.clear()
         if tokens:
             tokens.clear()
         if bridge:

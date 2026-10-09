@@ -20,11 +20,11 @@ The named contract is `HermesCompanionSnapshotV1`:
       cards: Array<{ id: string, title: string, text: string }>
     }
 
-`observed_at` is epoch milliseconds. Only profile `default` is accepted. Observations older than 15 seconds or in the future are rejected. Reply text is bounded at 32 KiB. There may be at most four cards; identifiers, labels, tool names, alt text, and card text are also bounded. Extra or malformed fields are rejected.
+`observed_at` is epoch milliseconds. Only profile `default` is accepted. Observations older than 15 seconds or in the future are rejected. Reply text is bounded at 32 KiB. There may be at most two passive cards in fixed order, Status followed by an optional Reply excerpt; identifiers, labels, tool names, alt text, and card text are also bounded. Extra or malformed fields are rejected.
 
-Image sources are limited to a single local filename in this preview directory with a PNG, JPEG, WebP, or GIF extension. Absolute paths, path separators, traversal, URLs, SVG, data, and script sources are rejected. The display never accepts a network image URL.
+Image sources are limited to a single lowercase SHA-256 basename followed by `.png` in this preview directory. The producer validates the strict PNG subset described in `docs/companion-content.md`. JPEG, WebP, GIF and other formats are rejected. Absolute paths, path separators, traversal, URLs, SVG, data, and script sources are rejected. The display never accepts a network image URL.
 
-Invalid, stale, future, unreadable, or missing snapshots visibly show Unknown, clear prior content, and use the static head. Content is tagged to the exact accepted `session_id`; an identity change clears the previous session before rendering the replacement. All supplied copy is assigned with `textContent`. Cards only expand and collapse locally. There are no links, approvals, commands, execution hooks, or host effects.
+Invalid, stale, future, unreadable, or missing snapshots visibly show Unknown, clear prior content, and use the static head. Content is tagged to the exact accepted `session_id`; an identity change clears the previous session before rendering the replacement. All supplied copy is assigned with `textContent`. Cards are always passive text with fixed IDs and titles. There are no links, approvals, commands, execution hooks, or host effects.
 
 Parent integration can call:
 
