@@ -163,24 +163,24 @@ function rotate(dx,dy,mode,overrides) {
   rotary.listeners.wheel(Object.assign({deltaX:dx,deltaY:dy,deltaMode:mode,target:rotary.nodes.face,preventDefault(){wheelPrevented++;}},overrides||{}));
 }
 rotate(53,0,0);
-assert.equal(rotary.nodes.content.scrollTop,147,'positive native knob delta is reversed');
+assert.equal(rotary.nodes.content.scrollTop,253,'positive native knob delta scrolls down after owner direction flip');
 rotate(-53,0,0);
-assert.equal(rotary.nodes.content.scrollTop,200,'negative native knob delta scrolls down');
+assert.equal(rotary.nodes.content.scrollTop,200,'negative native knob delta scrolls up');
 rotate(0,53,0);
 assert.equal(rotary.nodes.content.scrollTop,253,'ordinary vertical wheel retains its direction');
 rotate(53,0,0,{ctrlKey:true});
 assert.equal(rotary.nodes.content.scrollTop,253,'zoom gesture is untouched');
 rotary.nodes.content.scrollTop=0;
-rotate(53,0,0);
+rotate(-53,0,0);
 assert.equal(rotary.nodes.content.scrollTop,0,'top stays clamped');
-rotate(-1,0,1);
+rotate(1,0,1);
 assert.equal(rotary.nodes.content.scrollTop,32.4,'line-mode wheel uses text line height');
-rotate(-1,0,2);
+rotate(1,0,2);
 assert.equal(rotary.nodes.content.scrollTop,632.4,'page-mode wheel uses scroll viewport');
 rotary.browser.HermesCompanion.showFace();
 Object.assign(rotary.nodes.reply,{scrollTop:200,scrollHeight:2000,clientHeight:118});
 rotate(53,0,0);
-assert.equal(rotary.nodes.reply.scrollTop,147,'face excerpt also supports reversed rotary scroll');
+assert.equal(rotary.nodes.reply.scrollTop,253,'face excerpt follows owner direction flip');
 assert.equal(wheelPrevented,7,'handled wheel prevents native double scrolling');
 
 const pollPage=mount(true);
