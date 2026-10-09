@@ -200,7 +200,7 @@
   var forceStatic = /(?:\?|&)motion=off(?:&|$)/.test(search);
   var asset, glyph, sprites, painter, transition, transitionSubject, controller, view;
   var timer = null, started = 0, lastFrame = -Infinity, desiredContent = false;
-  var pollTimer = null, pollRequest = null, stopped = false;
+  var pollTimer = null, pollRequest = null, stopped = false, currentActivity = null;
   function transitionGlyph() {
     return {
       target: function () { return { state: 'transition' }; },
@@ -263,7 +263,8 @@
     if ((transition && transition.isRunning(now)) || glyph) tick(now);
   }
   function setActivity(activity) {
-    if (!asset) return;
+    if (!asset || currentActivity === activity) return;
+    currentActivity = activity;
     glyph = activity === 'idle' ? createDemo(asset, 'idle') : (activity === 'thinking' || activity === 'running') ? createDemo(asset, 'working') : null;
     started = root.performance.now(); restart();
   }

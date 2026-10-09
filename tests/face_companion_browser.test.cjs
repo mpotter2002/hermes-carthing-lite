@@ -77,6 +77,13 @@ assert.ok(page.arcs.some(dot=>dot.a>0 && dot.a<1),'return reassembles through a 
 page.setClock(2600); page.runDelay(250);
 assert.equal(page.arcs.length,1003,'return endpoint is the exact complete head');
 
+const continuity=mount(false);
+continuity.browser.HermesCompanion.applySnapshot(snapshot({activity:'idle'}));
+continuity.setClock(2400); continuity.runDelay(250);
+const beforeRefresh=continuity.arcs.map(dot=>({...dot}));
+continuity.browser.HermesCompanion.applySnapshot(snapshot({activity:'idle'}));
+assert.deepEqual(continuity.arcs,beforeRefresh,'same-activity refresh must preserve authored motion phase');
+
 const pollPage=mount(true);
 pollPage.xhrs[1].status=200; pollPage.xhrs[1].responseText=JSON.stringify(snapshot({activity:'idle',reply:null})); pollPage.xhrs[1].onload();
 assert.equal(pollPage.nodes.activity.textContent,'Idle');
