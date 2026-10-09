@@ -66,6 +66,14 @@ class FacePreviewTests(unittest.TestCase):
             self.assertIsNotNone(match)
             self.assertRegex(match.group(1), r'overflow-y:\s*auto;')
 
+    def test_display_buttons_are_hidden_without_collapsing_footer(self):
+        css = (ROOT / 'preview/face/face.css').read_text()
+        match = re.search(r'\.controls\s*\{([^}]+)\}', css)
+        assert match is not None
+        self.assertRegex(match.group(1), r'visibility:\s*hidden;')
+        self.assertRegex(match.group(1), r'flex:\s*0 0 58px;')
+        self.assertNotRegex(match.group(1), r'display:\s*none;')
+
     def test_display_controls_are_left_aligned_away_from_physical_knob(self):
         css = (ROOT / 'preview/face/face.css').read_text()
         match = re.search(r'\.controls\s*\{([^}]+)\}', css)
