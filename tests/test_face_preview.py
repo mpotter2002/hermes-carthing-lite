@@ -56,6 +56,14 @@ class FacePreviewTests(unittest.TestCase):
         self.assertIn("root.HermesCompanion", script)
         self.assertIn("'companion.json'", script)
 
+    def test_reply_scrollbars_are_hidden_without_disabling_scroll(self):
+        css = (ROOT / 'preview/face/face.css').read_text()
+        self.assertRegex(css, r'#reply::\-webkit-scrollbar,\s*\.content-view::\-webkit-scrollbar\s*\{\s*display:\s*none;\s*\}')
+        for selector in ('h1', r'\.content-view'):
+            match = re.search(selector + r'\s*\{([^}]+)\}', css)
+            self.assertIsNotNone(match)
+            self.assertRegex(match.group(1), r'overflow-y:\s*auto;')
+
     def test_display_controls_are_left_aligned_away_from_physical_knob(self):
         css = (ROOT / 'preview/face/face.css').read_text()
         match = re.search(r'\.controls\s*\{([^}]+)\}', css)
