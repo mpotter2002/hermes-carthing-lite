@@ -36,6 +36,25 @@ class FacePreviewTests(unittest.TestCase):
         parser.feed((ROOT / 'preview/face/index.html').read_text())
         self.assertEqual(parser.copy, ['HERMES', 'Hermes'])
 
+    def test_companion_layout_and_safe_text_contract_are_present(self):
+        html = (ROOT / 'preview/face/index.html').read_text()
+        css = (ROOT / 'preview/face/face.css').read_text()
+        script = (ROOT / 'preview/face/face.js').read_text()
+        self.assertIn('id="reply"', html)
+        self.assertIn('id="content"', html)
+        self.assertIn('id="show-content"', html)
+        self.assertIn('id="back"', html)
+        self.assertIn('width="480" height="800"', html)
+        self.assertIn('font-size: 35.88px', css)
+        self.assertIn('top: -55px', css)
+        self.assertIn('overflow-y: auto', css)
+        self.assertIn('pointer-events: none', css)
+        self.assertIn('padding: 34px 32px 34px', css)
+        self.assertIn('z-index: 2', css)
+        self.assertNotIn('innerHTML', script)
+        self.assertIn("root.HermesCompanion", script)
+        self.assertIn("'companion.json'", script)
+
     def test_supplied_head_is_preserved_byte_for_byte(self):
         path = ROOT / "preview/face/hermes-head.json"
         self.assertTrue(path.is_file(), "supplied head asset is not imported")

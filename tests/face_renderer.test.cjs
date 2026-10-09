@@ -21,7 +21,7 @@ function recorder() {
   return { context, arcs };
 }
 const still = recorder(); drawHead(still.context, asset);
-assert.deepEqual(still.arcs, asset.dots.map(d => ({ x: d.x + 0.5, y: d.y + 0.5, r: d.r, c: d.c, a: 1 })));
+assert.deepEqual(still.arcs, asset.dots.map(d => ({ x: (d.x + 0.5) * 10, y: (d.y + 0.5) * 10, r: d.r * 10, c: d.c, a: 1 })));
 for (const state of ['idle', 'working']) {
   const demo = createDemo(asset, state);
   const reference = new globalThis.BotGlyph.Glyph(JSON.parse(original), { botId: 'hermes', set: 'bold', variantMode: 'fixed', variants: { working: 'orbit' }, blinkPeriod: 3.8, breathe: 2.2 });
@@ -70,7 +70,7 @@ for (const state of ['idle', 'working']) {
 console.log('PASS cached authored geometry, ordered colors, bounded orbit and fixed texture memory');
 
 function mount(query, reduce, gpu) {
-  let timer, mediaListener, visibilityListener, xhr;
+  let timer, mediaListener, visibilityListener, xhr, gpuDraws = 0;
   const reduced = { matches: reduce, addListener(fn) { mediaListener = fn; } };
   const attributes = {}, rec = recorder();
   const canvas = { getContext() { return rec.context; }, setAttribute(k, v) { attributes[k] = v; }, addEventListener(type, fn) {this.lost=fn;}, cloneNode() { return this; }, parentNode: {replaceChild(){}} };
@@ -81,13 +81,13 @@ function mount(query, reduce, gpu) {
     setTimeout(fn, delay) { assert.equal(gpu, undefined, 'GPU animation must use display-synchronized scheduling'); assert.equal(delay, 250); timer = fn; return 1; }, clearTimeout() { timer = undefined; },
     XMLHttpRequest: function () { xhr = this; this.open = () => {}; this.send = () => {}; }
   };
-  if (gpu) browser.FaceGPU = {createPainter() {return {draw() {}};}};
+  if (gpu) browser.FaceGPU = {createPainter() {return {draw() {gpuDraws++;}};}};
   browser.requestAnimationFrame = fn => { timer = fn; return 2; };
   browser.cancelAnimationFrame = () => {timer = undefined;};
   vm.runInNewContext(fs.readFileSync(renderer, 'utf8'), browser);
   xhr.status = 200; xhr.responseText = original; xhr.onload();
   assert.equal(attributes['data-dot-count'], '1003'); assert.equal(attributes['data-error'], undefined);
-  return { canvas, attributes, browser, reduced, timer() { return timer; }, media() { mediaListener(); }, visibility() { visibilityListener(); } };
+  return { canvas, attributes, browser, reduced, timer() { return timer; }, gpuDraws() { return gpuDraws; }, media() { mediaListener(); }, visibility() { visibilityListener(); } };
 }
 assert.equal(mount('', false).timer(), undefined, 'unknown activity defaults to static, not invented idle');
 assert.equal(mount('?demo=working&motion=off', false).timer(), undefined);
@@ -102,6 +102,11 @@ console.log('PASS explicit demo selection, static legacy fallback, bounded4Hz ti
 const accelerated = mount('?demo=working', false, true);
 assert.equal(accelerated.attributes['data-renderer'], 'webgl');
 assert.equal(typeof accelerated.timer(), 'function');
+assert.equal(accelerated.gpuDraws(),1);
+accelerated.timer()(516); accelerated.timer()(548);
+assert.equal(accelerated.gpuDraws(),1,'GPU may schedule on display frames but remains capped near 20 draws/second');
+accelerated.timer()(549);
+assert.equal(accelerated.gpuDraws(),2);
 accelerated.browser.document.hidden = true; accelerated.visibility();
 assert.equal(accelerated.timer(), undefined);
 console.log('PASS accelerated scheduling and hidden cancellation');

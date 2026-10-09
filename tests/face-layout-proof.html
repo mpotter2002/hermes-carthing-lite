@@ -11,14 +11,14 @@ document.getElementById('preview').onload = function () {
     var doc = frame.contentDocument;
     var canvas = doc.getElementById('face');
     var rect = canvas.getBoundingClientRect();
-    var name = doc.querySelector('h1').getBoundingClientRect();
     var label = doc.querySelector('h1');
-    var range = doc.createRange(); range.selectNodeContents(label);
-    var currentTop = range.getBoundingClientRect().top;
-    var savedTop = label.style.top;
-    label.style.top = '0px';
-    var raisedBy = range.getBoundingClientRect().top - currentTop;
-    label.style.top = savedTop;
+    var response = doc.querySelector('.response-area');
+    var name = response.getBoundingClientRect();
+    var currentTop = response.getBoundingClientRect().top;
+    var savedTop = response.style.top;
+    response.style.top = '0px';
+    var raisedBy = response.getBoundingClientRect().top - currentTop;
+    response.style.top = savedTop;
     var copy = doc.body.innerText.trim().split(/\s+/).join(' ');
     var result = {
       viewport: [frame.contentWindow.innerWidth, frame.contentWindow.innerHeight],
@@ -30,9 +30,11 @@ document.getElementById('preview').onload = function () {
       canvasContained: rect.left >= 0 && rect.right <= 480 && rect.top >= 0 && rect.bottom <= 800,
       nameContained: name.top >= 0 && name.bottom <= 800,
       extraNameRaisePx: raisedBy,
-      buttons: doc.querySelectorAll('button').length
+      responseOverflowY: doc.defaultView.getComputedStyle(label).overflowY,
+      buttons: doc.querySelectorAll('button').length,
+      controlsHidden: doc.querySelector('.controls').hidden
     };
-    var pass = result.copy === 'HERMES Hermes' && result.dots === '1003' && !result.horizontalOverflow && !result.verticalOverflow && rect.width === rect.height && rect.width > 444 && result.canvasContained && result.nameContained && result.extraNameRaisePx === 50 && doc.defaultView.getComputedStyle(label).fontSize === '31.2px' && result.buttons === 0;
+    var pass = result.copy === 'HERMES Hermes' && result.dots === '1003' && !result.horizontalOverflow && !result.verticalOverflow && rect.width === rect.height && rect.width > 444 && result.canvasContained && result.nameContained && result.extraNameRaisePx === 55 && doc.defaultView.getComputedStyle(label).fontSize === '35.88px' && result.responseOverflowY === 'auto' && result.buttons === 2 && result.controlsHidden;
     document.getElementById('result').textContent = JSON.stringify({pass:pass, measured:result});
     document.getElementById('result').setAttribute('data-pass', String(pass));
   }, 500);
