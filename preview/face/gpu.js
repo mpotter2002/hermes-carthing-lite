@@ -39,7 +39,7 @@
     return frame;
   }
   function createPainter(canvas, asset) {
-    var gl = canvas.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: false });
+    var gl = canvas.getContext('webgl', { alpha: true, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: false });
     if (!gl) return null;
     function shader(type, source) {
       var result = gl.createShader(type);
@@ -63,7 +63,7 @@
     });
     var opacity = gl.getAttribLocation(program, 'opacity');
     gl.enableVertexAttribArray(opacity); gl.vertexAttribPointer(opacity, 1, gl.FLOAT, false, 28, 24);
-    gl.viewport(0, 0, canvas.width, canvas.height); gl.clearColor(0, 0, 0, 1);
+    gl.viewport(0, 0, canvas.width, canvas.height); gl.clearColor(0, 0, 0, 0);
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     return {
       draw: function (glyph, time) {

@@ -3,7 +3,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 require('../preview/face/desktop-glyph.js');
 const {createDemo,createTransition} = require('../preview/face/face.js');
-const {createFrame} = require('../preview/face/gpu.js');
+const {createFrame,createPainter} = require('../preview/face/gpu.js');
+let clearColor;
+const gl = new Proxy({getShaderParameter(){return true;},getProgramParameter(){return true;},clearColor(...value){clearColor=value;}}, {get(target,key){return key in target ? target[key] : function(){};}});
+let contextOptions;
+createPainter({width:480,height:800,getContext(kind,options){contextOptions=options;return gl;}}, JSON.parse(fs.readFileSync(path.join(__dirname,'../preview/face/hermes-head.json'))));
+assert.equal(contextOptions.alpha,true,'WebGL context must allow composition with the text and controls');
+assert.deepEqual(clearColor,[0,0,0,0],'empty canvas pixels cannot paint over the interface beneath the GPU surface');
 const asset = JSON.parse(fs.readFileSync(path.join(__dirname,'../preview/face/hermes-head.json')));
 for (const state of ['idle','working']) {
   const glyph = createDemo(asset,state);
