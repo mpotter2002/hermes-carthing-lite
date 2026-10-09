@@ -156,29 +156,27 @@ class SnapshotWriter:
         self.output = output
 
     def write(self, snapshot: dict[str, Any]) -> None:
+        from companion_content import _open_directory
         payload = json.dumps(snapshot, ensure_ascii=False, separators=(",", ":")).encode("utf-8") + b"\n"
-        self.output.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.output.with_name(f".{self.output.name}.{os.getpid()}.{secrets.token_hex(6)}.tmp")
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        directory_fd = _open_directory(self.output.parent, create_parents=True)
+        tmp = f".{self.output.name}.{os.getpid()}.{secrets.token_hex(6)}.tmp"
+        created = False
         try:
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600, dir_fd=directory_fd)
+            created = True
             with os.fdopen(fd, "wb") as handle:
                 handle.write(payload)
                 handle.flush()
                 os.fsync(handle.fileno())
-            os.replace(tmp, self.output)
-            try:
-                directory_fd = os.open(self.output.parent, os.O_RDONLY)
-                try:
-                    os.fsync(directory_fd)
-                finally:
-                    os.close(directory_fd)
-            except OSError:
-                pass
+            os.replace(tmp, self.output.name, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+            created = False
+            os.fsync(directory_fd)
         finally:
             try:
-                tmp.unlink()
-            except FileNotFoundError:
-                pass
+                if created:
+                    os.unlink(tmp, dir_fd=directory_fd)
+            finally:
+                os.close(directory_fd)
 
 
 def truncate_utf8(text: str, limit: int = MAX_REPLY_BYTES) -> str:

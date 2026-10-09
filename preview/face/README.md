@@ -20,7 +20,7 @@ The named contract is `HermesCompanionSnapshotV1`:
       cards: Array<{ id: string, title: string, text: string }>
     }
 
-`observed_at` is epoch milliseconds. Only profile `default` is accepted. Observations older than 15 seconds or in the future are rejected. Reply text is bounded at 32 KiB. There may be at most two passive cards in fixed order, Status followed by an optional Reply excerpt; identifiers, labels, tool names, alt text, and card text are also bounded. Extra or malformed fields are rejected.
+`observed_at` is epoch milliseconds. Only profile `default` is accepted. Observations older than 15 seconds or in the future are rejected. Reply text is bounded at 32 KiB. There may be at most two passive cards in fixed order, Status followed by Reply excerpt when a reply is present. Status is required except for a bare Unknown snapshot with no tool, reply, or image; identifiers, labels, tool names, alt text, and card text are also bounded. Extra or malformed fields are rejected.
 
 Image sources are limited to a single lowercase SHA-256 basename followed by `.png` in this preview directory. The producer validates the strict PNG subset described in `docs/companion-content.md`. JPEG, WebP, GIF and other formats are rejected. Absolute paths, path separators, traversal, URLs, SVG, data, and script sources are rejected. The display never accepts a network image URL.
 

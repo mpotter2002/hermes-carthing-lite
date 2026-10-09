@@ -454,6 +454,42 @@ class DurableAndOutputTests(unittest.TestCase):
         self.assertLessEqual(len(bounded.encode("utf-8")), cc.MAX_REPLY_BYTES)
         self.assertTrue(bounded)
 
+    def test_snapshot_write_cannot_follow_replaced_parent(self):
+        for timing in ('directory-open', 'temporary-open', 'publication'):
+            with self.subTest(timing=timing), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                parent = root / 'staging'
+                parent.mkdir()
+                forbidden = root / 'profile'
+                forbidden.mkdir()
+                output = parent / 'companion.json'
+                writer = cc.SnapshotWriter(output)
+                original_open, original_replace = os.open, os.replace
+                swapped = False
+                def swap():
+                    nonlocal swapped
+                    if not swapped:
+                        swapped = True
+                        parent.rename(root / 'retired')
+                        parent.symlink_to(forbidden, target_is_directory=True)
+                def racing_open(path, flags, *args, **kwargs):
+                    if timing == 'directory-open' and (str(path) == str(parent) or str(path) == parent.name):
+                        swap()
+                    if timing == 'temporary-open' and str(path).endswith('.tmp'):
+                        swap()
+                    return original_open(path, flags, *args, **kwargs)
+                def racing_replace(*args, **kwargs):
+                    if timing == 'publication':
+                        swap()
+                    return original_replace(*args, **kwargs)
+                with mock.patch.object(cc.os, 'open', side_effect=racing_open), mock.patch.object(cc.os, 'replace', side_effect=racing_replace):
+                    try:
+                        writer.write(cc.unknown_snapshot())
+                    except OSError:
+                        pass
+                self.assertTrue(swapped)
+                self.assertEqual(list(forbidden.iterdir()), [], 'snapshot must not write through the replacement symlink')
+
     def test_atomic_output_has_exact_shape_and_no_temporary_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, "staging", "companion.json")

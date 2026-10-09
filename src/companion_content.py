@@ -73,14 +73,14 @@ def _validated_inputs(
     return reply_text, clean_tool
 
 
-def _open_directory(path: Path, *, create_leaf: bool = False) -> int:
+def _open_directory(path: Path, *, create_leaf: bool = False, create_parents: bool = False) -> int:
     if not path.is_absolute() or '..' in path.parts:
         raise ValueError("invalid directory")
     flags = os.O_RDONLY | os.O_CLOEXEC | os.O_DIRECTORY | os.O_NOFOLLOW
     descriptor = os.open(path.anchor, flags)
     try:
         for index, part in enumerate(path.parts[1:], 1):
-            if create_leaf and index == len(path.parts) - 1:
+            if create_parents or (create_leaf and index == len(path.parts) - 1):
                 try:
                     os.mkdir(part, mode=0o700, dir_fd=descriptor)
                 except FileExistsError:

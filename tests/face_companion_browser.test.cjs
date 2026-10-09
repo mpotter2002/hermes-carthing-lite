@@ -54,7 +54,13 @@ function mount(reducedMotion, gpu, search) {
   return {browser,nodes,canvas,document,media,xhrs,timers,arcs,listeners,setClock(v){clock=v;},runDelay(delay){const found=[...timers].find(([,t])=>t.delay===delay);assert.ok(found,'missing timer '+delay);timers.delete(found[0]);found[1].fn(clock);}};
 }
 function snapshot(overrides) {
-  return Object.assign({version:1,profile:'default',session_id:'default-chat',observed_at:Date.now(),activity:'thinking',tool:null,reply:{id:'r',text:'x'.repeat(400)},image:null,cards:[]},overrides||{});
+  const result = Object.assign({version:1,profile:'default',session_id:'default-chat',observed_at:Date.now(),activity:'thinking',tool:null,reply:{id:'r',text:'x'.repeat(400)},image:null,cards:[]},overrides||{});
+  if (!Object.prototype.hasOwnProperty.call(overrides || {}, 'cards')) {
+    const label = {unknown:'Unknown',idle:'Idle',thinking:'Thinking',running:'Running'}[result.activity] + (result.tool ? ' · ' + result.tool : '');
+    result.cards = [{id:'status',title:'Status',text:label}];
+    if (result.reply) result.cards.push({id:'reply-excerpt',title:'Reply excerpt',text:result.reply.text.slice(0,8192)});
+  }
+  return result;
 }
 
 const pushed=mount(false, true, '?companion=1&transport=push');

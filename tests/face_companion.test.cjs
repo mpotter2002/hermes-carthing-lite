@@ -3,7 +3,7 @@ const face = require('../preview/face/face.js');
 
 const NOW = 1700000000000;
 function snapshot(overrides) {
-  return Object.assign({
+  const result = Object.assign({
     version: 1,
     profile: 'default',
     session_id: 'session-1',
@@ -14,9 +14,21 @@ function snapshot(overrides) {
     image: null,
     cards: []
   }, overrides || {});
+  if (!Object.prototype.hasOwnProperty.call(overrides || {}, 'cards')) {
+    const label = {unknown:'Unknown',idle:'Idle',thinking:'Thinking',running:'Running'}[result.activity] + (result.tool ? ' · ' + result.tool : '');
+    result.cards = [{id:'status',title:'Status',text:label}];
+    if (result.reply) result.cards.push({id:'reply-excerpt',title:'Reply excerpt',text:result.reply.text.slice(0,8192)});
+  }
+  return result;
 }
 
 assert.equal(face.SNAPSHOT_SHAPE, "HermesCompanionSnapshotV1");
+for (const activity of ['idle','thinking','running']) {
+  assert.equal(face.validateSnapshot(snapshot({activity,cards:[]}), NOW).ok, false, 'normal snapshots require fixed cards');
+}
+assert.equal(face.validateSnapshot(snapshot({activity:'unknown',reply:null,image:null,tool:null,cards:[]}),NOW).ok,true);
+assert.equal(face.validateSnapshot(snapshot({activity:'unknown',cards:[]}),NOW).ok,false,'Unknown with reply still requires cards');
+assert.equal(face.validateSnapshot(snapshot({cards:[{id:'status',title:'Status',text:'Idle'}]}),NOW).ok,false,'reply requires its fixed excerpt');
 assert.equal(face.validateSnapshot(snapshot(), NOW).ok, true);
 for (const bad of [
   snapshot({version: 2}),

@@ -32,6 +32,8 @@
     if (snapshot.reply !== null && (!objectWithKeys(snapshot.reply, ['id', 'text']) || !boundedString(snapshot.reply.id, 256, false) || !boundedString(snapshot.reply.text, 32768, true))) return { ok: false, reason: 'reply' };
     if (snapshot.image !== null && (!objectWithKeys(snapshot.image, ['alt', 'src']) || !safeImageSource(snapshot.image.src) || !boundedString(snapshot.image.alt, 512, true))) return { ok: false, reason: 'image' };
     if (!Array.isArray(snapshot.cards) || snapshot.cards.length > 2) return { ok: false, reason: 'cards' };
+    var bareUnknown = snapshot.activity === 'unknown' && snapshot.tool === null && snapshot.reply === null && snapshot.image === null;
+    if (!(bareUnknown && snapshot.cards.length === 0) && snapshot.cards.length !== (snapshot.reply === null ? 1 : 2)) return { ok: false, reason: 'cards' };
     for (i = 0; i < snapshot.cards.length; i += 1) {
       card = snapshot.cards[i];
       if (!objectWithKeys(card, ['id', 'text', 'title']) || !boundedString(card.text, 8192, true)) return { ok: false, reason: 'card' };
