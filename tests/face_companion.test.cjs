@@ -57,6 +57,10 @@ const asset = JSON.parse(require('node:fs').readFileSync(require('node:path').jo
 assert.equal(face.WINDOW_FRAME_SHAPE, 'HermesDotWindowFrameV1');
 const geometry = face.WINDOW_GEOMETRY;
 assert.deepEqual(Object.keys(geometry).sort(), ['bobAmplitude','bottom','contentBottom','contentLeft','contentRight','contentTop','layers','left','right','top']);
+assert.equal(geometry.top, 78, 'frame uses the empty space below the header');
+assert.equal(geometry.contentTop, 94, 'first line moves up while keeping its border inset');
+assert.equal(geometry.bottom, 756.4, 'frame extends down by one 32.4px text line');
+assert.equal(geometry.contentBottom, 740.4, 'scroll viewport stays inset from extended border');
 const transition = face.createTransition(asset, 800);
 assert.equal(transition.value(0), 0);
 transition.setTarget(1, 0);

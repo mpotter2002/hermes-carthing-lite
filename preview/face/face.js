@@ -4,8 +4,8 @@
   var WINDOW_FRAME_SHAPE = 'HermesDotWindowFrameV1';
   var FACE_LEFT = 4, FACE_TOP = 112, FACE_SIZE = 472;
   var WINDOW_GEOMETRY = {
-    left: 16, right: 464, top: 90, bottom: 724, layers: 5, bobAmplitude: 1.25,
-    contentLeft: 32, contentRight: 448, contentTop: 106, contentBottom: 708
+    left: 16, right: 464, top: 78, bottom: 756.4, layers: 5, bobAmplitude: 1.25,
+    contentLeft: 32, contentRight: 448, contentTop: 94, contentBottom: 740.4
   };
   var SNAPSHOT_KEYS = ['activity', 'cards', 'image', 'observed_at', 'profile', 'reply', 'session_id', 'tool', 'version'];
   function objectWithKeys(value, keys) {
@@ -405,6 +405,17 @@
     if (desiredContent) showFace();
     else if (event.keyCode === 13) showContent();
   });
+  if (companionMode) document.addEventListener('wheel', function (event) {
+    if (!asset || stopped || document.hidden || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    var target = event.target;
+    if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].indexOf(target.tagName) >= 0)) return;
+    var scroll = document.getElementById(desiredContent ? 'content' : 'reply');
+    var delta = event.deltaY || -event.deltaX;
+    if (!scroll || scroll.hidden || !isFinite(delta) || !delta || scroll.scrollHeight <= scroll.clientHeight) return;
+    var scale = event.deltaMode === 1 ? 32.4 : event.deltaMode === 2 ? scroll.clientHeight : 1;
+    event.preventDefault();
+    scroll.scrollTop = Math.max(0, Math.min(scroll.scrollHeight - scroll.clientHeight, scroll.scrollTop + delta * scale));
+  }, {passive: false});
   if (root.addEventListener) root.addEventListener('pagehide', function () { stopped = true; stopPolling(); cancelRenderTimer(); });
   function useCanvasFallback() {
     cancelRenderTimer(); painter = null;
