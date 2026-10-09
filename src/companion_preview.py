@@ -120,6 +120,10 @@ class DeviceBridge:
             self.socket.close()
 
 
+def managed_code(script: Path, args: list[str]) -> str:
+    return f"import sys,runpy; sys._companion_preview_managed=True; sys.path.insert(0,{str(script.parent)!r}); sys.argv={([str(script)] + args)!r}; runpy.run_path({str(script)!r},run_name='__main__')"
+
+
 def main(argv=None):
     extra = argparse.ArgumentParser(add_help=False)
     extra.add_argument('--cdp-origin', default='http://localhost:19222')
@@ -132,7 +136,7 @@ def main(argv=None):
     if not getattr(sys, '_companion_preview_managed', False):
         sys.path.insert(0, str(source))
         from hermes_cli._launchers import runtime_command
-        code = f"sys._companion_preview_managed=True; sys.argv={([str(Path(__file__).resolve())] + list(sys.argv[1:]))!r}; runpy.run_path({str(Path(__file__).resolve())!r},run_name='__main__')"
+        code = managed_code(Path(__file__).resolve(), list(sys.argv[1:]))
         return subprocess.call(runtime_command(source, code=code))
     tokens = None
     bridge = None

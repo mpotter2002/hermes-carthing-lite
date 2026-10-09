@@ -5,6 +5,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 import companion_preview as preview
 
 class PreviewTests(unittest.TestCase):
+    def test_isolated_launcher_imports_client_from_script_directory(self):
+        import subprocess
+        script = Path(preview.__file__).resolve()
+        result = subprocess.run([sys.executable, '-I', '-c', preview.managed_code(script, ['--help'])], capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Read-only default Bot Chat companion client', result.stdout)
+
     def test_clock_translation_preserves_age(self):
         source = {'observed_at': 990, 'activity': 'idle'}
         converted = preview.device_snapshot(source, 1000, 500)
