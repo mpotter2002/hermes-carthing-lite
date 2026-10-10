@@ -851,6 +851,13 @@ class CompanionClient:
                 await asyncio.sleep(min(POLL_SECONDS, max(0.0, deadline - time.monotonic())))
 
     async def run(self, duration: float) -> None:
+        recoverable_errors: tuple[type[Exception], ...] = (CompanionError, OSError, asyncio.TimeoutError)
+        try:
+            from websockets.exceptions import ConnectionClosed
+        except ImportError:
+            pass
+        else:
+            recoverable_errors += (ConnectionClosed,)
         deadline = time.monotonic() + duration
         self._write_snapshot(unknown_snapshot())
         backoff = 0.5
@@ -867,7 +874,7 @@ class CompanionClient:
                     continue
             except AuthRequired:
                 raise
-            except (CompanionError, OSError, asyncio.TimeoutError):
+            except recoverable_errors:
                 # A disconnected projection retains only the last committed DB reply when available.
                 durable = None
                 try:
