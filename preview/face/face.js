@@ -175,11 +175,11 @@
       if (controls) controls.hidden = false;
       show.hidden = true; show.textContent = 'Full content'; back.textContent = 'Back';
     }
-    function render(snapshot) {
+    function render(snapshot, captionExpired) {
       var hasFull = !!snapshot.image || snapshot.cards.length > 0 || !!(snapshot.reply && snapshot.reply.text.length > 280);
       companion.setAttribute('data-session-id', snapshot.session_id);
       activity.hidden = false; activity.textContent = activityLabel(snapshot);
-      reply.textContent = snapshot.activity === 'thinking' ? 'Thinking...' : snapshot.activity === 'running' ? 'Running...' : snapshot.reply ? snapshot.reply.text : 'Hermes';
+      reply.textContent = captionExpired ? '' : snapshot.activity === 'thinking' ? 'Thinking...' : snapshot.activity === 'running' ? 'Running...' : snapshot.reply ? snapshot.reply.text : 'Hermes';
       fullReply.textContent = snapshot.reply ? snapshot.reply.text : '';
       image.hidden = !snapshot.image;
       if (snapshot.image) { image.setAttribute('src', snapshot.image.src); image.setAttribute('alt', snapshot.image.alt); }
@@ -199,21 +199,29 @@
     function showContent() {
       companion.setAttribute('data-view', 'content'); content.hidden = false; back.hidden = false; show.hidden = true;
     }
-    return { clear: clear, render: render, showFace: showFace, showContent: showContent };
+    return { clear: clear, render: render, hideIdleCaption: function () { reply.textContent = ''; }, showFace: showFace, showContent: showContent };
   }
-  function createCompanionController(view, now, activityChanged) {
-    var current = null, hasFull = false;
+  function createCompanionController(view, now, activityChanged, idleNow) {
+    var current = null, hasFull = false, idleSince = null;
+    idleNow = idleNow || now;
+    function captionExpired() {
+      return current && current.activity === 'idle' && idleSince !== null && idleNow() - idleSince >= 180000;
+    }
     function applySnapshot(snapshot) {
       var checked = validateSnapshot(snapshot, now());
       if (!checked.ok) {
-        current = null; hasFull = false; view.clear('Unknown'); activityChanged('unknown'); return false;
+        current = null; idleSince = null; hasFull = false; view.clear('Unknown'); activityChanged('unknown'); return false;
       }
+      var sameReply = current && ((!current.reply && !snapshot.reply) || (current.reply && snapshot.reply && current.reply.id === snapshot.reply.id && current.reply.text === snapshot.reply.text));
+      if (snapshot.activity !== 'idle') idleSince = null;
+      else if (!current || current.session_id !== snapshot.session_id || current.activity !== 'idle' || !sameReply) idleSince = idleNow();
       if (current && current.session_id !== snapshot.session_id) view.clear('Unknown');
-      current = snapshot; view.showFace(); hasFull = view.render(snapshot); activityChanged(snapshot.activity);
+      current = snapshot; view.showFace(); hasFull = view.render(snapshot, captionExpired()); activityChanged(snapshot.activity);
       return true;
     }
     return {
       applySnapshot: applySnapshot,
+      expireIdleCaption: function () { if (captionExpired()) view.hideIdleCaption(); },
       current: function () { return current; },
       hasFullContent: function () { return hasFull; },
       invalidate: function () { return applySnapshot(null); }
@@ -322,7 +330,7 @@
   function getController() {
     if (!controller) {
       view = createCompanionView(document);
-      controller = createCompanionController(view, function () { return Date.now(); }, setActivity);
+      controller = createCompanionController(view, function () { return Date.now(); }, setActivity, function () { return root.performance.now(); });
     }
     return controller;
   }
@@ -378,6 +386,7 @@
     if (pushedTransport) {
       var active = getController();
       if (!validateSnapshot(active.current(), Date.now()).ok) root.HermesCompanion.applySnapshot(null);
+      else active.expireIdleCaption();
       schedulePoll(); return;
     }
     pollRequest = new XMLHttpRequest();
