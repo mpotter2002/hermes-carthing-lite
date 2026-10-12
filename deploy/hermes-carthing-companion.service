@@ -1,0 +1,21 @@
+[Unit]
+Description=Hermes Car Thing face companion (read-only default Bot Chat mirror)
+Documentation=file://%h/projects/carthing-companion-live/docs/companion-service.md
+After=hermes-serve.service hermes-dashboard.service
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/hermes-carthing-companion.env
+WorkingDirectory=%h/projects/carthing-companion-live
+ExecStart=/usr/bin/python3 %h/projects/carthing-companion-live/src/companion_service.py run --hermes-source %h/.hermes/hermes-agent --profile-home %h/.hermes --origin ${HERMES_COMPANION_ORIGIN} --output %h/projects/carthing-companion-staging/companion.json --serial ${HERMES_COMPANION_SERIAL}
+Restart=always
+RestartSec=15
+RestartPreventExitStatus=78
+Nice=10
+MemoryMax=256M
+CPUQuota=40%
+NoNewPrivileges=yes
+UMask=0077
+
+[Install]
+WantedBy=default.target

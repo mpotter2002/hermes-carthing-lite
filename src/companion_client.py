@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Read-only default Bot Chat companion projection.
 
-This client uses Hermes's first-party native login, keeps credentials in memory,
+This client uses Hermes's first-party native login, keeps access tokens in memory,
 observes exactly one owner-pinned runtime, and writes only a local snapshot file.
+The persistent service may save the rotating refresh token privately (see
+docs/companion-service.md).
 """
 
 from __future__ import annotations
@@ -368,9 +370,10 @@ class NativeLogin:
 
 
 class AuthSession:
-    def __init__(self, origin: str, tokens: Tokens):
+    def __init__(self, origin: str, tokens: Tokens, on_rotate: Callable[[Tokens], None] | None = None):
         self.origin = validate_origin(origin)
         self.tokens = tokens
+        self.on_rotate = on_rotate
 
     def _refresh(self) -> None:
         old_refresh = self.tokens.refresh_token
@@ -381,17 +384,25 @@ class AuthSession:
                 operation="native token refresh",
                 body={"refresh_token": old_refresh, "provider": old_provider},
             )
-            previous = self.tokens
-            self.tokens = Tokens.from_payload(payload)
-            previous.clear()
-        except (HttpFailure, AuthRequired):
+            rotated = Tokens.from_payload(payload)
+        except HttpFailure as exc:
+            if exc.status not in (400, 401, 403):
+                raise
             self.tokens.clear()
             raise AuthRequired("authentication expired; run an explicit new login") from None
+        except AuthRequired:
+            self.tokens.clear()
+            raise AuthRequired("authentication expired; run an explicit new login") from None
+        previous = self.tokens
+        self.tokens = rotated
+        previous.clear()
+        if self.on_rotate:
+            self.on_rotate(rotated)
 
     def ticket(self) -> str:
-        if not self.tokens.access_token:
+        if not self.tokens.access_token and not self.tokens.refresh_token:
             raise AuthRequired("authentication required")
-        if self.tokens.expires_at and time.time() >= self.tokens.expires_at - 15:
+        if not self.tokens.access_token or (self.tokens.expires_at and time.time() >= self.tokens.expires_at - 15):
             self._refresh()
         try:
             payload = _http_json(
