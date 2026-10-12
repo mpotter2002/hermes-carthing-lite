@@ -32,11 +32,12 @@ def validate_cdp_origin(origin: str) -> str:
 
 
 class DeviceBridge:
-    def __init__(self, origin: str, output: Path):
+    def __init__(self, origin: str, output: Path, allowed_urls=None):
         from websockets.sync.client import connect
         self.connect = connect
         self.origin = validate_cdp_origin(origin)
         self.output = output
+        self.allowed_urls = frozenset(allowed_urls or {PREVIEW_URL, 'file:///var/hermes-face-preview/device.html?demo=idle'})
         self.applied = 0
         self.activities = set()
         self.copied = set()
@@ -50,7 +51,7 @@ class DeviceBridge:
 
     def page(self):
         pages = json.load(urllib.request.urlopen(self.origin + '/json/list', timeout=5))
-        allowed_urls = {PREVIEW_URL, 'file:///var/hermes-face-preview/device.html?demo=idle'}
+        allowed_urls = getattr(self, 'allowed_urls', {PREVIEW_URL, 'file:///var/hermes-face-preview/device.html?demo=idle'})
         pages = [p for p in pages if p.get('type') == 'page' and p.get('url') in allowed_urls and (self.target_id is None or p.get('id') == self.target_id)]
         if len(pages) != 1:
             raise RuntimeError('expected one existing face preview page')
@@ -91,6 +92,21 @@ class DeviceBridge:
                 return
             time.sleep(.2)
         raise RuntimeError('device preview did not initialize')
+
+    def wait_ready(self, timeout=10):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self.evaluate('!!(window.HermesCompanion && document.documentElement && document.querySelector(\"canvas[data-loaded=true]\"))'):
+                if self.evaluate('location.href') not in self.allowed_urls:
+                    raise RuntimeError('unexpected device preview URL')
+                return
+            time.sleep(.2)
+        raise RuntimeError('device face page did not initialize')
+
+    def close(self):
+        if self.socket:
+            self.socket.close()
+            self.socket = None
 
     def apply(self, snapshot):
         image = snapshot.get('image')
