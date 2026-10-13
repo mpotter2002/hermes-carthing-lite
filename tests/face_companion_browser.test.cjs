@@ -69,6 +69,25 @@ assert.equal(pushed.xhrs.length,1,'push transport loads artwork without competin
 assert.equal(pushed.browser.HermesCompanion.applySnapshot(snapshot({activity:'idle'})),true);
 assert.equal(pushed.nodes.activity.textContent,'Idle');
 
+const ambient=mount(false, true, '?companion=1&transport=push');
+assert.equal(ambient.nodes.activity.textContent,'Unknown','no feed keeps the honest Unknown label');
+assert.equal(ambient.canvas.attributes['data-animation'],'ambient/idle','Unknown face keeps the gentle authored idle motion');
+assert.ok([...ambient.timers.values()].some(t=>t.delay===16),'Unknown schedules the bounded idle render chain');
+ambient.browser.HermesCompanion.applySnapshot(snapshot({activity:'idle',reply:{id:'a',text:'Reply'}}));
+assert.equal(ambient.canvas.attributes['data-animation'],'idle/idle');
+ambient.browser.HermesCompanion.applySnapshot(snapshot({observed_at:Date.now()-16000}));
+assert.equal(ambient.nodes.activity.textContent,'Unknown','stale telemetry is still labelled Unknown, never Idle');
+assert.equal(ambient.canvas.attributes['data-animation'],'ambient/idle','stale telemetry keeps ambient idle motion');
+assert.equal([...ambient.timers.values()].filter(t=>t.delay===16).length,1,'one render chain after state changes');
+ambient.browser.HermesCompanion.applySnapshot(snapshot({activity:'thinking'}));
+assert.match(ambient.canvas.attributes['data-animation'],/^thinking\//,'real activity overrides ambient idle');
+const ambientStill=mount(true, true, '?companion=1&transport=push');
+assert.equal(ambientStill.canvas.attributes['data-animation'],'ambient/idle');
+assert.equal([...ambientStill.timers.values()].some(t=>t.delay===16||t.delay===250),false,'reduced motion keeps Unknown static');
+const ambientOff=mount(false, true, '?companion=1&transport=push&motion=off');
+assert.equal([...ambientOff.timers.values()].some(t=>t.delay===16||t.delay===250),false,'motion=off keeps Unknown static');
+console.log('PASS Unknown keeps ambient idle motion with honest label; activity overrides; reduced/motion-off static');
+
 const page=mount(false);
 assert.equal(page.browser.HermesCompanion.SNAPSHOT_SHAPE,'HermesCompanionSnapshotV1');
 assert.equal(page.nodes.activity.textContent,'Unknown');
