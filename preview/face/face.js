@@ -312,7 +312,7 @@
   function setActivity(activity) {
     if (!asset || currentActivity === activity) return;
     currentActivity = activity;
-    var next = activity === 'idle' ? 'idle' : activity === 'thinking' ? 'thinking' : activity === 'running' ? 'working' : null;
+    var next = activity === 'idle' ? 'idle' : activity === 'thinking' ? 'thinking' : activity === 'running' ? 'working' : companionMode ? 'idle' : null;
     var choices = activityVariants[activity];
     var variant = choices ? choices[activityVisits[activity]++ % choices.length] : 'idle';
     if (next && glyph) glyph.set(next, (root.performance.now() - started) / 1000, {
@@ -324,7 +324,7 @@
       if (glyph) glyph.jump(next, 0, variant);
       started = root.performance.now();
     }
-    canvas.setAttribute('data-animation', next ? next + '/' + variant : 'static');
+    canvas.setAttribute('data-animation', !next ? 'static' : activity === 'unknown' ? 'ambient/idle' : next + '/' + variant);
     restart();
   }
   function getController() {
