@@ -521,7 +521,11 @@ def resolve_owner(
     if entry.get("surface") != "desktop":
         raise CompanionError("canonical owner is not the desktop Bot Chat surface")
     metadata = entry.get("metadata")
-    if not isinstance(metadata, dict) or metadata.get("bot_live_delivery_consumer") is not True:
+    if not isinstance(metadata, dict):
+        raise CompanionError("canonical owner metadata is missing")
+    # New desktop leases advertise writer identity, not the retired delivery mailbox.
+    current_desktop_lease = entry.get("track_liveness") is True and "bot_live_delivery_consumer" not in metadata
+    if metadata.get("bot_live_delivery_consumer") is not True and not current_desktop_lease:
         raise CompanionError("canonical owner is not an advertised Bot Chat consumer")
     runtime = metadata.get("live_session_id")
     lease = entry.get("lease_id")
@@ -696,10 +700,13 @@ class ProjectionState:
     def apply_status(self, output: str) -> bool | None:
         if not isinstance(output, str) or len(output.encode("utf-8", "replace")) > 64 * 1024:
             return None
-        values = re.findall(r"(?m)^Agent Running: (Yes|No)$", output)
+        values = re.findall(
+            r"(?m)^[ \t]*(?:Agent Running:|\*\*Agent Running:\*\*)[ \t]+"
+            r"(Yes(?:[ \t]+⚡)?|No)[ \t]*\r?$", output,
+        )
         if len(values) != 1:
             return None
-        running = values[0] == "Yes"
+        running = values[0].startswith("Yes")
         if not running:
             self.turn_active = False
             self.thinking = False
