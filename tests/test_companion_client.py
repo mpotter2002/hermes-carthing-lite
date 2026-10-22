@@ -295,6 +295,17 @@ class OwnerTests(unittest.TestCase):
         with self.assertRaises(cc.CompanionError):
             self.resolve([self.owner(), self.owner(lease_id="other")])
 
+    def test_current_desktop_lease_without_delivery_consumer_is_readable(self):
+        entry = self.owner(track_liveness=True, metadata={"live_session_id": "runtime"})
+        self.assertEqual(self.resolve([entry]), cc.OwnerPin("durable", "runtime", "lease", 42, 100.5))
+        for broken in (
+            self.owner(track_liveness=True, surface="cli", metadata={"live_session_id": "runtime"}),
+            self.owner(track_liveness=True, metadata={"live_session_id": "runtime", "bot_live_delivery_consumer": False}),
+            self.owner(track_liveness=True, metadata={"live_session_id": ""}),
+        ):
+            with self.subTest(broken=broken), self.assertRaises(cc.CompanionError):
+                self.resolve([broken])
+
     def test_recycled_pid_and_wrong_serving_application_fail_closed(self):
         with self.assertRaisesRegex(cc.CompanionError, "recycled"):
             cc.resolve_owner(
@@ -375,6 +386,29 @@ class ProjectionTests(unittest.TestCase):
         self.assertEqual(snap["activity"], "running")
         self.assertIsNone(snap["tool"])
         self.assertNotIn("secret", json.dumps(snap))
+
+    def test_gateway_markdown_status_preserves_live_activity(self):
+        state = cc.ProjectionState("durable", "runtime")
+        state.apply_replay(replay([
+            event(1, "message.start"), event(2, "thinking.delta", {"text": "not displayed"}),
+        ]))
+        running = state.apply_status("📊 **Hermes Gateway Status**\n**Agent Running:** Yes ⚡\r\n")
+        self.assertIs(running, True)
+        self.assertEqual(state.snapshot(running)["activity"], "thinking")
+        state.apply_replay(replay([event(3, "tool.start", {"tool_id": "t", "name": "web_search"})]))
+        self.assertEqual(state.snapshot(state.apply_status("**Agent Running:** Yes ⚡"))["activity"], "running")
+        self.assertEqual(state.snapshot(state.apply_status("**Agent Running:** No"))["activity"], "idle")
+        self.assertFalse(state.tools)
+
+    def test_unknown_and_ambiguous_status_do_not_claim_activity(self):
+        state = cc.ProjectionState("durable", "runtime")
+        for output in (
+            "**Agent Running:** Maybe", "**Agent Running:** Yesterday",
+            "**Agent Running:** No ⚡", "unrelated: Agent Running: Yes",
+            "Agent Running: Yes\n**Agent Running:** No", "Agent Running: Yes\nAgent Running: Yes",
+        ):
+            with self.subTest(output=output):
+                self.assertEqual(state.snapshot(state.apply_status(output))["activity"], "unknown")
 
     def test_conservative_phase_and_idle_clears_tools(self):
         state = cc.ProjectionState("durable", "runtime")
