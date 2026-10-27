@@ -223,8 +223,7 @@
       applySnapshot: applySnapshot,
       expireIdleCaption: function () { if (captionExpired()) view.hideIdleCaption(); },
       current: function () { return current; },
-      hasFullContent: function () { return hasFull; },
-      invalidate: function () { return applySnapshot(null); }
+      hasFullContent: function () { return hasFull; }
     };
   }
   var api = { SNAPSHOT_SHAPE: SNAPSHOT_SHAPE, WINDOW_FRAME_SHAPE: WINDOW_FRAME_SHAPE, WINDOW_GEOMETRY: WINDOW_GEOMETRY, validateSnapshot: validateSnapshot, safeImageSource: safeImageSource, createTransition: createTransition, createCompanionView: createCompanionView, createCompanionController: createCompanionController, drawHead: drawHead, createDemo: createDemo, createSprites: createSprites, drawCached: drawCached };
