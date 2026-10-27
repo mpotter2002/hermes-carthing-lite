@@ -16,13 +16,10 @@
         --surface: #102a25;
         --surface-strong: #17342e;
         --line: rgba(246, 238, 222, 0.2);
-        --grid: rgba(246, 238, 222, 0.055);
         --text: #fff1dc;
         --muted: rgba(255, 241, 220, 0.68);
         --accent: #a8e6c5;
-        --accent-soft: rgba(168, 230, 197, 0.18);
         --alert: #f0b44d;
-        --mark-bg: #e8e2d8;
         --mark-ink: #111714;
       }
 
@@ -31,13 +28,10 @@
         --surface: #242628;
         --surface-strong: #2d3032;
         --line: rgba(255, 239, 224, 0.2);
-        --grid: rgba(255, 239, 224, 0.05);
         --text: #fff0e2;
         --muted: rgba(255, 240, 226, 0.66);
         --accent: #d97757;
-        --accent-soft: rgba(217, 119, 87, 0.2);
         --alert: #e6b55d;
-        --mark-bg: #f4e8dd;
         --mark-ink: #d97757;
       }
 
@@ -49,9 +43,7 @@
         --text: #ffffff;
         --muted: rgba(255, 255, 255, 0.66);
         --accent: #ffffff;
-        --accent-soft: rgba(255, 255, 255, 0.16);
         --alert: #ffffff;
-        --mark-bg: #000000;
         --mark-ink: #ffffff;
       }
 
@@ -60,13 +52,10 @@
         --surface: #ffffff;
         --surface-strong: #eaf2ff;
         --line: rgba(14, 57, 170, 0.22);
-        --grid: rgba(14, 57, 170, 0.065);
         --text: #0e39aa;
         --muted: rgba(14, 57, 170, 0.64);
         --accent: #1565d8;
-        --accent-soft: rgba(21, 101, 216, 0.13);
         --alert: #c98b1f;
-        --mark-bg: #eef5ff;
         --mark-ink: #0e39aa;
       }
 
@@ -75,13 +64,10 @@
         --surface: #ffffff;
         --surface-strong: #ffede4;
         --line: rgba(133, 57, 34, 0.22);
-        --grid: rgba(133, 57, 34, 0.06);
         --text: #71331f;
         --muted: rgba(113, 51, 31, 0.64);
         --accent: #d86643;
-        --accent-soft: rgba(216, 102, 67, 0.14);
         --alert: #b87918;
-        --mark-bg: #fff0e7;
         --mark-ink: #d86643;
       }
 
@@ -93,9 +79,7 @@
         --text: #000000;
         --muted: rgba(0, 0, 0, 0.62);
         --accent: #000000;
-        --accent-soft: rgba(0, 0, 0, 0.1);
         --alert: #000000;
-        --mark-bg: #ffffff;
         --mark-ink: #000000;
       }
 
@@ -263,10 +247,6 @@
         object-fit: cover;
         border-radius: 50%;
         filter: grayscale(0.75);
-      }
-
-      .agent-button.active {
-        background: transparent;
       }
 
       .agent-button.active img {
@@ -722,8 +702,7 @@
             latencyMs: null,
             tokens: { input: 0, output: 0, total: 0 },
             tools: { active: [] },
-            message: agent.message,
-            source: "offline"
+            message: agent.message
           };
         }
 
@@ -958,8 +937,7 @@
             tools: {
               active: pickList(tools, ["active", "active_tools", "running"])
             },
-            message: pickString(source, ["message", "detail", "last_event", "note"]) || "Telemetry responding",
-            source: "live"
+            message: pickString(source, ["message", "detail", "last_event", "note"]) || "Telemetry responding"
           };
         }
 
