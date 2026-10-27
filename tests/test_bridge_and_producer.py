@@ -210,7 +210,7 @@ class MapStatusTests(unittest.TestCase):
         self.assertNotIn("tokens", status)
 
     def test_unavailable(self):
-        status = hermes_status.unavailable_status()
+        status = hermes_status.map_status(None)
         self.assertEqual(status["gateway"], "offline")
 
 
