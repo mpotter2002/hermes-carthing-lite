@@ -185,7 +185,7 @@ class ServiceRunTests(unittest.TestCase):
         self.assertEqual(service.EXIT_LOGIN_REQUIRED, 78)
 
     def test_persistent_preview_selector_accepts_only_final_face_page(self):
-        self.assertEqual(service.FACE_URL, 'file:///var/hermes-face-v1-preview/device.html?companion=1&transport=push')
+        self.assertEqual(service.PREVIEW_URL, 'file:///var/hermes-face-v1-preview/device.html?companion=1&transport=push')
 
 
 class UnitFileTests(unittest.TestCase):

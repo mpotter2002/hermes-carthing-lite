@@ -84,10 +84,6 @@ def map_status(raw: dict | None, local: list[str] | tuple = ()) -> dict:
             "provider": PROVIDER, "message": message, "tools": tools}
 
 
-def unavailable_status() -> dict:
-    return map_status(None)
-
-
 _PROFILE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 
 

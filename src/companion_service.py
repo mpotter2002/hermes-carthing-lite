@@ -20,9 +20,8 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import companion_client as cc  # noqa: E402
-from companion_preview import DeviceBridge, managed_code  # noqa: E402
+from companion_preview import DeviceBridge, PREVIEW_URL, managed_code  # noqa: E402
 
-FACE_URL = 'file:///var/hermes-face-v1-preview/device.html?companion=1&transport=push'
 CDP_ORIGIN = 'http://localhost:19222'
 EXIT_LOGIN_REQUIRED = 78
 RUN_FOREVER = 10 * 365 * 24 * 3600.0
@@ -126,7 +125,7 @@ class DeviceLink:
                  clock=time.monotonic, log=log):
         self.serial = serial
         self.adb = adb
-        self.bridge_factory = bridge_factory or (lambda: DeviceBridge(CDP_ORIGIN, output, allowed_urls={FACE_URL}))
+        self.bridge_factory = bridge_factory or (lambda: DeviceBridge(CDP_ORIGIN, output, allowed_urls={PREVIEW_URL}))
         self.clock = clock
         self.log = log
         self.bridge = None
