@@ -50,7 +50,7 @@ def read_status(agent: str) -> tuple[dict | None, int]:
         return None, 0
     if not isinstance(value, dict):
         return None, 0
-    return {key: item for key, item in value.items() if not key.startswith("_")}, modified
+    return value, modified
 
 
 def post_status(base_url: str, token: str, agent: str, status: dict) -> bool:

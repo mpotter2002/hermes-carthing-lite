@@ -149,8 +149,6 @@ def normalized_status(agent: str, event: dict, previous: dict) -> dict:
         "tokens": tokens,
         "tools": tools,
         "message": "Ready",
-        "_event": event_name,
-        "_session": str(event.get("session_id") or "")[:120],
     }
 
     if event_name == "SessionStart":
@@ -163,14 +161,14 @@ def normalized_status(agent: str, event: dict, previous: dict) -> dict:
         status["activity"] = "working"
         status["message"] = f"Using {tool_name}"[:160]
         status["tools"] = {"active": [tool_name[:40]]}
-    elif event_name in ("PostToolUse", "PostToolUseFailure", "PostToolBatch"):
+    elif event_name in ("PostToolUse", "PostToolUseFailure"):
         status["activity"] = "working"
         status["message"] = f"Finished {tool_name}"[:160]
         status["tools"] = {"active": []}
     elif event_name in ("PermissionRequest", "Notification"):
         status["activity"] = "waiting"
         status["message"] = "Waiting for input"
-    elif event_name in ("Stop", "TaskCompleted"):
+    elif event_name in ("Stop",):
         status["message"] = "Ready"
         status["tools"] = {"active": []}
     elif event_name in ("SessionEnd",):
