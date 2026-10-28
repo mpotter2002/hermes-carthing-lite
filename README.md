@@ -1,6 +1,5 @@
 # Agent Monitor for Car Thing
 
-For continuation by the Hermes agent, see [HANDOFF.md](HANDOFF.md).
 
 A single-renderer, low-memory monitor for Hermes, Claude, and Codex. It is designed for the Car Thing's 488 MB RAM limit and avoids the DeskThing shell plus iframe combination that causes Chromium to be killed by `earlyoom`.
 
